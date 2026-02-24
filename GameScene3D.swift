@@ -16,6 +16,9 @@ final class GameScene3D {
     init() {
         scene = SCNScene()
 
+        // 物理世界の基本設定（重力はデフォルトのまま下向き）。
+        scene.physicsWorld.gravity = SCNVector3(0, -9.8, 0)
+
         // カメラ
         cameraNode = SCNNode()
         cameraNode.camera = SCNCamera()
@@ -39,6 +42,10 @@ final class GameScene3D {
 #else
         floorNode.geometry?.firstMaterial?.diffuse.contents = NSColor.darkGray
 #endif
+        // 床は静的な物理ボディとして扱う。
+        floorNode.physicsBody = SCNPhysicsBody.static()
+        floorNode.physicsBody?.restitution = 0.05
+        floorNode.physicsBody?.friction = 1.0
         scene.rootNode.addChildNode(floorNode)
 
         // タワーの土台（傾ける板）
@@ -50,6 +57,10 @@ final class GameScene3D {
 #endif
         boardNode = SCNNode(geometry: boardGeometry)
         boardNode.position = SCNVector3(0, 1.0, 0)
+        // 土台も静的ボディ（後でゆっくり傾ける）。
+        boardNode.physicsBody = SCNPhysicsBody.static()
+        boardNode.physicsBody?.restitution = 0.05
+        boardNode.physicsBody?.friction = 0.9
         scene.rootNode.addChildNode(boardNode)
 
         addAnchorLabels()
@@ -83,8 +94,20 @@ final class GameScene3D {
         let localX = Float(position.x) * 2.5
         let localZ = Float(position.y) * 2.5
 
-        node.position = SCNVector3(localX, Float(0.3 / 2 + height / 2), localZ)
-        boardNode.addChildNode(node)
+        // 上の方から自由落下させるため、Y を高めに設定。
+        let startY: Float = 4.0
+        node.position = SCNVector3(localX, startY, localZ)
+
+        // 動的な物理ボディ：重いけれどあまり弾まない設定。
+        let body = SCNPhysicsBody.dynamic()
+        body.mass = 1.0
+        body.restitution = 0.05   // 反発をかなり低めに
+        body.friction = 0.9       // すべりにくく
+        body.angularDamping = 0.3
+        body.damping = 0.2
+        node.physicsBody = body
+
+        scene.rootNode.addChildNode(node)
     }
 
     private func addAnchorLabels() {
