@@ -8,25 +8,36 @@ import AppKit
 
 /// タワーの土台を3Dで表現するシーン。
 /// 後でセマンティック重心に応じて傾きを変える。
-final class GameScene3D {
+final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
     let scene: SCNScene
     let cameraNode: SCNNode
-    private let boardNode: SCNNode
+    private var boardNode: SCNNode
     private var currentAngle: CGFloat = 0
     private struct SemanticDisc {
-        let position: CGPoint
-        let mass: Double
+        let node: SCNNode
+        let semanticX: Double
+        var isOnBoard: Bool
     }
     private var discs: [SemanticDisc] = []
 
-    init() {
+    private enum PhysicsCategory {
+        static let floor: Int = 1 << 0
+        static let board: Int = 1 << 1
+        static let disc: Int = 1 << 2
+    }
+
+    override init() {
+        // すべての `let` プロパティを super.init() の前に初期化する。
         scene = SCNScene()
+        cameraNode = SCNNode()
+        boardNode = SCNNode()
+        super.init()
 
         // 物理世界の基本設定（重力はデフォルトのまま下向き）。
         scene.physicsWorld.gravity = SCNVector3(0, -9.8, 0)
+        scene.physicsWorld.contactDelegate = self
 
         // カメラ
-        cameraNode = SCNNode()
         cameraNode.camera = SCNCamera()
         cameraNode.position = SCNVector3(0, 4, 8)
         cameraNode.eulerAngles = SCNVector3(-Float.pi / 6, 0, 0)
@@ -49,9 +60,12 @@ final class GameScene3D {
         floorNode.geometry?.firstMaterial?.diffuse.contents = NSColor.darkGray
 #endif
         // 床は静的な物理ボディとして扱う。
-        floorNode.physicsBody = SCNPhysicsBody.static()
-        floorNode.physicsBody?.restitution = 0.05
-        floorNode.physicsBody?.friction = 1.0
+        let floorBody = SCNPhysicsBody.static()
+        floorBody.restitution = 0.05
+        floorBody.friction = 1.0
+        floorBody.categoryBitMask = PhysicsCategory.floor
+        floorBody.contactTestBitMask = PhysicsCategory.disc
+        floorNode.physicsBody = floorBody
         scene.rootNode.addChildNode(floorNode)
 
         // タワーの土台（傾ける板）
@@ -64,9 +78,12 @@ final class GameScene3D {
         boardNode = SCNNode(geometry: boardGeometry)
         boardNode.position = SCNVector3(0, 1.0, 0)
         // 土台も静的ボディ（後でゆっくり傾ける）。
-        boardNode.physicsBody = SCNPhysicsBody.static()
-        boardNode.physicsBody?.restitution = 0.05
-        boardNode.physicsBody?.friction = 0.9
+        let boardBody = SCNPhysicsBody.static()
+        boardBody.restitution = 0.05
+        boardBody.friction = 0.9
+        boardBody.categoryBitMask = PhysicsCategory.board
+        boardBody.contactTestBitMask = PhysicsCategory.disc
+        boardNode.physicsBody = boardBody
         scene.rootNode.addChildNode(boardNode)
 
         addAnchorLabels()
@@ -98,12 +115,25 @@ final class GameScene3D {
         body.friction = 0.9       // すべりにくく
         body.angularDamping = 0.3
         body.damping = 0.2
+        body.categoryBitMask = PhysicsCategory.disc
+        body.contactTestBitMask = PhysicsCategory.board | PhysicsCategory.floor
         node.physicsBody = body
 
         scene.rootNode.addChildNode(node)
 
-        discs.append(SemanticDisc(position: position, mass: mass))
-        updateTiltFromDiscs()
+        // 傾き計算用には、意味座標の差が画面上でもはっきり出るようにスケーリングする。
+        // 例: NLEmbedding の差分は [-0.2, 0.2] 程度に収まるので、4倍して [-0.8, 0.8] まで広げる。
+        let scaleForTilt: CGFloat = 4.0
+        let scaledX = max(-1.0, min(1.0, position.x * scaleForTilt))
+
+        // まだ空中にあるので、ボードには乗っていない扱い（isOnBoard = false）
+        discs.append(
+            SemanticDisc(
+                node: node,
+                semanticX: Double(scaledX),
+                isOnBoard: false
+            )
+        )
     }
 
     private func addAnchorLabels() {
@@ -146,21 +176,26 @@ final class GameScene3D {
 
     /// 現在積まれているディスクのセマンティック重心から、ターゲットの傾きを決める。
     private func updateTiltFromDiscs() {
-        guard !discs.isEmpty else { return }
+        let activeDiscs = discs.filter { $0.isOnBoard }
+        guard !activeDiscs.isEmpty else {
+            // 盤上にディスクがない場合は水平にリセット。
+            updateBoardTilt(centerOfMass: .zero)
+            return
+        }
 
         // 個数や重みには依存させず、「幾何学的な中心」だけを見る。
-        let sumX = discs.reduce(0.0) { partial, disc in
-            partial + Double(disc.position.x)
+        let sumX = activeDiscs.reduce(0.0) { partial, disc in
+            partial + disc.semanticX
         }
-        let centerX = sumX / Double(discs.count)
+        let centerX = sumX / Double(activeDiscs.count)
         let center = CGPoint(x: centerX, y: 0)
 
-        // デバッグ用ログ: ディスク配置と重心・目標角度を出力。
-        let positionsSummary = discs
-            .map { String(format: "%.2f", $0.position.x) }
+        // デバッグ用ログ: ディスク配置と重心を出力。
+        let positionsSummary = activeDiscs
+            .map { String(format: "%.2f", $0.semanticX) }
             .joined(separator: ", ")
         let centerStr = String(format: "%.3f", centerX)
-        print("[Tilt] discs=\(discs.count), xPositions=[\(positionsSummary)], centerX=\(centerStr)")
+        print("[Tilt] activeDiscs=\(activeDiscs.count), xPositions=[\(positionsSummary)], centerX=\(centerStr)")
 
         updateBoardTilt(centerOfMass: center)
     }
@@ -190,8 +225,8 @@ final class GameScene3D {
         let delta = targetAngle - currentAngle
         guard abs(delta) > 0.001 else { return }
 
-        // ゲームらしく「ゆっくり倒れていく」感覚を出すために 15度/秒程度に抑える。
-        let angularSpeed: CGFloat = .pi / 12 // 15度/秒
+        // ゲームらしく「ゆっくり倒れていく」感覚を出すために 3度/秒程度に抑える。
+        let angularSpeed: CGFloat = .pi / 60 // 3度/秒
         let duration = max(0.05, TimeInterval(abs(delta) / angularSpeed))
 
         SCNTransaction.begin()
@@ -200,6 +235,38 @@ final class GameScene3D {
         SCNTransaction.commit()
 
         currentAngle = targetAngle
+    }
+
+    // MARK: - SCNPhysicsContactDelegate
+
+    func physicsWorld(_ world: SCNPhysicsWorld, didBegin contact: SCNPhysicsContact) {
+        guard let nodeA = contact.nodeA as SCNNode?, let nodeB = contact.nodeB as SCNNode? else { return }
+
+        let categoryA = nodeA.physicsBody?.categoryBitMask ?? 0
+        let categoryB = nodeB.physicsBody?.categoryBitMask ?? 0
+
+        // ディスクとボードの接触 → 盤上に乗ったとみなす
+        if (categoryA == PhysicsCategory.disc && categoryB == PhysicsCategory.board) ||
+            (categoryA == PhysicsCategory.board && categoryB == PhysicsCategory.disc) {
+            let discNode = categoryA == PhysicsCategory.disc ? nodeA : nodeB
+            if let index = discs.firstIndex(where: { $0.node === discNode }) {
+                discs[index].isOnBoard = true
+                updateTiltFromDiscs()
+            }
+            return
+        }
+
+        // ディスクと床の接触 → 完全に落ちたとみなして削除
+        if (categoryA == PhysicsCategory.disc && categoryB == PhysicsCategory.floor) ||
+            (categoryA == PhysicsCategory.floor && categoryB == PhysicsCategory.disc) {
+            let discNode = categoryA == PhysicsCategory.disc ? nodeA : nodeB
+            if let index = discs.firstIndex(where: { $0.node === discNode }) {
+                discs.remove(at: index)
+            }
+            discNode.removeFromParentNode()
+            updateTiltFromDiscs()
+            return
+        }
     }
 }
 
