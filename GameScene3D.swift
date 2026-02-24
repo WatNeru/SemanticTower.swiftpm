@@ -220,15 +220,9 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         let maxAngle: CGFloat = .pi / 3 // ≈60度
         let clampedX = max(-1.0, min(1.0, Double(centerOfMass.x)))
 
-        // 右に重心があれば常に +maxAngle、左なら -maxAngle を
-        // 一定の角速度で目指す。完全にゼロのときだけ水平。
-        let targetAngle: CGFloat
-        if clampedX == 0 {
-            targetAngle = 0
-        } else {
-            let sign: CGFloat = clampedX >= 0 ? 1 : -1
-            targetAngle = sign * maxAngle
-        }
+        // 重心が右に寄っているときは左に倒す（重心の逆向きに傾ける）。
+        // X = -1 → +maxAngle, X = 0 → 0, X = +1 → -maxAngle。
+        let targetAngle = -CGFloat(clampedX) * maxAngle
 
         let delta = targetAngle - currentAngle
         guard abs(delta) > 0.001 else { return }
