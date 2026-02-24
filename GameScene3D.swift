@@ -148,31 +148,50 @@ final class GameScene3D {
     private func updateTiltFromDiscs() {
         guard !discs.isEmpty else { return }
 
-        var totalMass: Double = 0
-        var weightedX: Double = 0
-
-        for disc in discs {
-            totalMass += disc.mass
-            weightedX += Double(disc.position.x) * disc.mass
+        // 個数や重みには依存させず、「幾何学的な中心」だけを見る。
+        let sumX = discs.reduce(0.0) { partial, disc in
+            partial + Double(disc.position.x)
         }
-
-        guard totalMass > 0 else { return }
-        let centerX = weightedX / totalMass
+        let centerX = sumX / Double(discs.count)
         let center = CGPoint(x: centerX, y: 0)
+
+        // デバッグ用ログ: ディスク配置と重心・目標角度を出力。
+        let positionsSummary = discs
+            .map { String(format: "%.2f", $0.position.x) }
+            .joined(separator: ", ")
+        let centerStr = String(format: "%.3f", centerX)
+        print("[Tilt] discs=\(discs.count), xPositions=[\(positionsSummary)], centerX=\(centerStr)")
+
         updateBoardTilt(centerOfMass: center)
     }
 
     /// セマンティック重心に応じて土台の傾き（Z軸回転）を更新。
-    /// centerOfMass.x は [-1, 1] を想定。傾きの角速度は等速にする。
+    /// centerOfMass.x は [-1, 1] を想定。
+    /// 傾きの角速度は常に等速で、十分に傾くとディスクがすべて落ちる。
     private func updateBoardTilt(centerOfMass: CGPoint) {
-        let maxAngle: CGFloat = .pi / 6 // 約30度
+        // ゲームとしては大きく傾いてすべて落ちるところまで回転させたいので、
+        // 最大角度を約80度に設定する。
+        // 画面上で分かりやすく、かつ極端すぎない程度の最大傾き。
+        let maxAngle: CGFloat = .pi / 3 // ≈60度
         let clampedX = max(-1.0, min(1.0, Double(centerOfMass.x)))
-        let targetAngle = CGFloat(clampedX) * maxAngle
+        let epsilon = 0.05
+
+        let targetAngle: CGFloat
+        if abs(clampedX) < epsilon {
+            // ほぼバランスしているときは水平に戻す。
+            targetAngle = 0
+        } else {
+            // 右に重心があれば常に +maxAngle、左なら -maxAngle を
+            // 一定の角速度で目指す。
+            let sign: CGFloat = clampedX >= 0 ? 1 : -1
+            targetAngle = sign * maxAngle
+        }
 
         let delta = targetAngle - currentAngle
         guard abs(delta) > 0.001 else { return }
 
-        let angularSpeed: CGFloat = .pi / 4 // 45度/秒
+        // ゲームらしく「ゆっくり倒れていく」感覚を出すために 15度/秒程度に抑える。
+        let angularSpeed: CGFloat = .pi / 12 // 15度/秒
         let duration = max(0.05, TimeInterval(abs(delta) / angularSpeed))
 
         SCNTransaction.begin()

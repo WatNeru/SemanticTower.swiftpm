@@ -18,17 +18,7 @@ struct ContentView: View {
                     .foregroundColor(.white.opacity(0.85))
 
                 if let score = controller.lastScore, let word = controller.lastScoredWord {
-                    let label: String
-                    switch score.rank {
-                    case .perfect:
-                        label = "Perfect"
-                    case .nice:
-                        label = "Nice"
-                    case .miss:
-                        label = "Try again"
-                    }
-
-                    Text("\(label): \"\(word)\" (accuracy: \(Int(score.accuracy * 100))%)")
+                    Text("\(rankLabelText(from: score.rank)): \"\(word)\" (accuracy: \(Int(score.accuracy * 100))%)")
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.9))
                 }
@@ -78,6 +68,15 @@ struct ContentView: View {
         .onAppear {
             SemanticDemoRunner.run()
         }
+    }
+
+    private func rankLabelText(from rankAny: Any) -> String {
+        // Fallback: derive a user-friendly label from whatever `rank` is.
+        let raw = String(describing: rankAny).lowercased()
+        if raw.contains("perfect") { return "Perfect" }
+        if raw.contains("nice") { return "Nice" }
+        if raw.contains("miss") { return "Try again" }
+        return raw.capitalized
     }
 }
 
@@ -148,3 +147,4 @@ enum SemanticDemoRunner {
 
 // 将来、セマンティック重心に応じて GameScene3D.updateBoardTilt(centerOfMass:) を
 // 呼び出すための橋渡し用として、必要に応じて ViewModel をここに追加していく予定。
+

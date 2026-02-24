@@ -67,6 +67,11 @@ final class SemanticGameController: ObservableObject {
         // 重さは文字数ベースでざっくり設定（長い単語ほど重い）。
         let baseMass = max(0.5, min(3.0, Double(lowercased.count) / 3.0))
 
+        let xStr = String(format: "%.3f", semanticPos.x)
+        let yStr = String(format: "%.3f", semanticPos.y)
+        let massStr = String(format: "%.2f", baseMass)
+        print("[Drop] word=\"\(word)\", semantic=(x=\(xStr), y=\(yStr)), mass=\(massStr)")
+
         // セマンティック座標をそのままボード上の局所座標にマッピング。
         scene3D.addDisc(atSemanticPosition: semanticPos, color: .systemTeal, mass: baseMass)
 
