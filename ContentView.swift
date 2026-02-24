@@ -7,62 +7,65 @@ struct ContentView: View {
         ZStack {
             GameView3D(scene3D: controller.scene3D)
 
-            VStack(spacing: 8) {
-                Text("Semantic Tower Battle")
-                    .font(.title.bold())
-                    .foregroundColor(.white)
-                    .shadow(radius: 8)
+            // 上部: タイトル・スコア（Liquid Glass / マテリアル風パネル）
+            VStack(spacing: 0) {
+                GlassPanel {
+                    VStack(spacing: 8) {
+                        Text("Semantic Tower Battle")
+                            .font(.title2.bold())
+                            .foregroundStyle(.primary)
 
-                Text(controller.isDemoMode ? "Demo mode: preset words" : "Manual mode: type any word")
-                    .font(.footnote)
-                    .foregroundColor(.white.opacity(0.85))
+                        Text(controller.isDemoMode ? "Demo mode: preset words" : "Manual mode: type any word")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
 
-                if let score = controller.lastScore, let word = controller.lastScoredWord {
-                    Text("\(rankLabelText(from: score.rank)): \"\(word)\" (accuracy: \(Int(score.accuracy * 100))%)")
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.9))
+                        if let score = controller.lastScore, let word = controller.lastScoredWord {
+                            Text("\(rankLabelText(from: score.rank)): \"\(word)\" (accuracy: \(Int(score.accuracy * 100))%)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
-            }
-            .padding(.top, 40)
+                .padding(.horizontal, 24)
+                .padding(.top, 48)
 
+                Spacer()
+            }
+
+            // 下部: 入力・操作（一体化ガラスパネル）
             VStack {
                 Spacer()
-                HStack {
+                HStack(spacing: 12) {
                     TextField("type a word…", text: $controller.wordInput)
                         .textInputAutocapitalization(.never)
                         .disableAutocorrection(true)
-                        .padding(10)
-                        .background(Color.black.opacity(0.4))
-                        .cornerRadius(12)
-                        .foregroundColor(.white)
+                        .foregroundStyle(.primary)
                         .disabled(controller.isDemoMode)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                        .frame(maxWidth: .infinity)
 
                     Button {
                         controller.dropCurrentWord()
                     } label: {
                         Text("Drop")
                             .fontWeight(.semibold)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Color.white.opacity(0.9))
-                            .foregroundColor(.black)
-                            .cornerRadius(10)
                     }
+                    .buttonStyle(.glassProminent)
 
                     Button {
                         controller.isDemoMode.toggle()
                     } label: {
                         Text(controller.isDemoMode ? "Demo" : "Manual")
                             .font(.footnote.weight(.semibold))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color.black.opacity(0.5))
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
                     }
+                    .buttonStyle(.glass)
                 }
+                .padding(16)
+                .glassEffect(.regular, cornerRadius: 20)
                 .padding(.horizontal, 24)
-                .padding(.bottom, 32)
+                .padding(.bottom, 40)
             }
         }
         .onAppear {
