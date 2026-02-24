@@ -19,8 +19,6 @@ private enum PhysicsConfig {
     /// 安定化のための減衰（0.05–0.1 が推奨）
     static let linearDamping: CGFloat = 0.1
     static let angularDamping: CGFloat = 0.1
-    /// 傾きの角速度（ラジアン/秒）
-    static let tiltAngularSpeed: CGFloat = .pi / 60  // 約3度/秒
 }
 
 /// タワーの土台を3Dで表現するシーン。
@@ -30,9 +28,8 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
     let scene: SCNScene
     let cameraNode: SCNNode
     private var boardNode: SCNNode
-    /// 現在の傾き（X=ピッチ, Z=ロール）。フレームごとに補間して physics と同期。
-    private var currentPitchX: CGFloat = 0
-    private var currentRollZ: CGFloat = 0
+    /// 傾き計算用にスムージングした重心（見かけ上の重心）。実際の重心にゆっくり追従させる。
+    private var smoothedCenterOfMass: CGPoint = .zero
     private struct SemanticDisc {
         let node: SCNNode
         var isOnBoard: Bool
@@ -93,7 +90,8 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         // 以前の当たり判定位置に近づけるため、高さを少し厚めに戻す。
         let boardGeometry = SCNBox(width: 6, height: 0.4, length: 6, chamferRadius: 0.2)
 #if canImport(UIKit)
-        boardGeometry.firstMaterial?.diffuse.contents = UIColor.white
+        boardGeometry.firstMaterial?.diffuse.contents =
+        UIColor.white
 #else
         boardGeometry.firstMaterial?.diffuse.contents = NSColor.white
 #endif
@@ -201,37 +199,46 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         scene.rootNode.addChildNode(objectNode)
     }
 
-    /// 現在積まれているディスクのセマンティック重心から、ターゲットの傾きを決める。
+    /// 現在積まれているディスクのセマンティック重心から、盤の傾きを決める。
+    /// 「実際の重心」を直接使わず、過去値との間を補間した `smoothedCenterOfMass` を使って
+    /// 少しずつ傾くようにする。
     private func updateTiltFromDiscs() {
         let activeDiscs = discs.filter { $0.isOnBoard }
-        guard !activeDiscs.isEmpty else {
-            // 盤上にディスクがない場合は水平にリセット。
-            updateBoardTilt(centerOfMass: .zero)
-            return
+        let targetCenter: CGPoint
+
+        if activeDiscs.isEmpty {
+            // ディスクが無いときは「重心=原点」をターゲットとし、ゆっくり水平に戻る。
+            targetCenter = .zero
+        } else {
+            // 個数や重みには依存させず、「幾何学的な中心」だけを見る。
+            // 盤上ディスクの現在の物理位置から、上から見た X/Z を [-1, 1] に正規化して平均する。
+            let (sumX, sumY) = activeDiscs.reduce(into: (0.0, 0.0)) { acc, disc in
+                let worldPos = disc.node.presentation.position
+                let worldX = Double(worldPos.x)
+                let worldZ = Double(worldPos.z)
+                // ボード半幅・半奥行きを 2.5 とみなして正規化。
+                let normalizedX = max(-1.0, min(1.0, worldX / 2.5))
+                let normalizedY = max(-1.0, min(1.0, worldZ / 2.5))
+                acc.0 += normalizedX
+                acc.1 += normalizedY
+            }
+            let count = Double(activeDiscs.count)
+            let centerX = sumX / count
+            let centerY = sumY / count
+            targetCenter = CGPoint(x: centerX, y: centerY)
         }
 
-        // 個数や重みには依存させず、「幾何学的な中心」だけを見る。
-        // 盤上ディスクの現在の物理位置から、上から見た X/Z を [-1, 1] に正規化して平均する。
-        let (sumX, sumY) = activeDiscs.reduce(into: (0.0, 0.0)) { acc, disc in
-            let worldPos = disc.node.presentation.position
-            let worldX = Double(worldPos.x)
-            let worldZ = Double(worldPos.z)
-            // ボード半幅・半奥行きを 2.5 とみなして正規化。
-            let normalizedX = max(-1.0, min(1.0, worldX / 2.5))
-            let normalizedY = max(-1.0, min(1.0, worldZ / 2.5))
-            acc.0 += normalizedX
-            acc.1 += normalizedY
-        }
-        let count = Double(activeDiscs.count)
-        let centerX = sumX / count
-        let centerY = sumY / count
-        let center = CGPoint(x: centerX, y: centerY)
-        updateBoardTilt(centerOfMass: center)
+        // 0 < alpha < 1: alpha が小さいほど、ゆっくり追従する。
+        let alpha: CGFloat = 0.15
+        smoothedCenterOfMass.x += (targetCenter.x - smoothedCenterOfMass.x) * alpha
+        smoothedCenterOfMass.y += (targetCenter.y - smoothedCenterOfMass.y) * alpha
+
+        updateBoardTilt(centerOfMass: smoothedCenterOfMass)
     }
 
     /// セマンティック重心に応じて土台の傾き（X/Z軸回転）を更新。
     /// centerOfMass.x / y はともに [-1, 1] を想定。
-    /// フレームごとに補間して更新し、physics エンジンと同期させる（SCNTransaction は避ける）。
+    /// 「ターゲット角度」や補間は使わず、重心に対して即時に角度を決める。
     private func updateBoardTilt(centerOfMass: CGPoint) {
         let maxAngle: CGFloat = .pi / 3  // ≈60度
         let clampedX = max(-1.0, min(1.0, Double(centerOfMass.x)))
@@ -240,22 +247,8 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         let targetRollZ = -CGFloat(clampedX) * maxAngle
         let targetPitchX = CGFloat(clampedY) * maxAngle
 
-        // 角速度に応じてフレームごとに補間（0.1秒間隔のタイマー想定）
-        let dt: CGFloat = 0.1
-        let maxDelta = PhysicsConfig.tiltAngularSpeed * dt
-
-        func stepToward(current: CGFloat, target: CGFloat) -> CGFloat {
-            let delta = target - current
-            if abs(delta) < 0.001 { return target }
-            let step = min(abs(delta), maxDelta) * (delta > 0 ? 1 : -1)
-            return current + step
-        }
-
-        currentPitchX = stepToward(current: currentPitchX, target: targetPitchX)
-        currentRollZ = stepToward(current: currentRollZ, target: targetRollZ)
-
-        boardNode.eulerAngles.x = Float(currentPitchX)
-        boardNode.eulerAngles.z = Float(currentRollZ)
+        boardNode.eulerAngles.x = Float(targetPitchX)
+        boardNode.eulerAngles.z = Float(targetRollZ)
     }
 
     // MARK: - SCNPhysicsContactDelegate
@@ -286,7 +279,6 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
                     body.angularVelocity = SCNVector4Zero
                 }
                 discs[index].isOnBoard = true
-                updateTiltFromDiscs()
             }
             return
         }
@@ -299,7 +291,6 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
                 discs.remove(at: index)
             }
             discNode.removeFromParentNode()
-            updateTiltFromDiscs()
             return
         }
     }
