@@ -69,7 +69,7 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         scene.rootNode.addChildNode(floorNode)
 
         // タワーの土台（傾ける板）
-        let boardGeometry = SCNBox(width: 6, height: 0.3, length: 6, chamferRadius: 0.2)
+        let boardGeometry = SCNBox(width: 6, height: 0.4, length: 6, chamferRadius: 0.2)
 #if canImport(UIKit)
         boardGeometry.firstMaterial?.diffuse.contents = UIColor.white
 #else
@@ -77,8 +77,8 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
 #endif
         boardNode = SCNNode(geometry: boardGeometry)
         boardNode.position = SCNVector3(0, 1.0, 0)
-        // 土台も静的ボディ（後でゆっくり傾ける）。
-        let boardBody = SCNPhysicsBody.static()
+        // 土台は「手で動かす」オブジェクトなので、運動学的ボディにする。
+        let boardBody = SCNPhysicsBody.kinematic()
         boardBody.restitution = 0.05
         boardBody.friction = 0.9
         boardBody.categoryBitMask = PhysicsCategory.board
@@ -115,6 +115,8 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         body.friction = 0.9       // すべりにくく
         body.angularDamping = 0.3
         body.damping = 0.2
+        // すり抜け防止のため、ある程度の速さ以上で連続衝突判定を有効にする。
+        body.continuousCollisionDetectionThreshold = 0.01
         body.categoryBitMask = PhysicsCategory.disc
         body.contactTestBitMask = PhysicsCategory.board | PhysicsCategory.floor
         node.physicsBody = body
@@ -249,6 +251,12 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         if (categoryA == PhysicsCategory.disc && categoryB == PhysicsCategory.board) ||
             (categoryA == PhysicsCategory.board && categoryB == PhysicsCategory.disc) {
             let discNode = categoryA == PhysicsCategory.disc ? nodeA : nodeB
+            // ボードの「天面」付近との接触だけを盤上とみなす（側面との一時的な接触を除外）。
+            let boardY = boardNode.presentation.position.y
+            let contactY = contact.contactPoint.y
+            if contactY < boardY + 0.15 {
+                return
+            }
             if let index = discs.firstIndex(where: { $0.node === discNode }) {
                 discs[index].isOnBoard = true
                 updateTiltFromDiscs()
