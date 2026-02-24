@@ -16,6 +16,22 @@ struct ContentView: View {
                 Text(controller.isDemoMode ? "Demo mode: preset words" : "Manual mode: type any word")
                     .font(.footnote)
                     .foregroundColor(.white.opacity(0.85))
+
+                if let score = controller.lastScore, let word = controller.lastScoredWord {
+                    let label: String
+                    switch score.rank {
+                    case .perfect:
+                        label = "Perfect"
+                    case .nice:
+                        label = "Nice"
+                    case .miss:
+                        label = "Try again"
+                    }
+
+                    Text("\(label): \"\(word)\" (accuracy: \(Int(score.accuracy * 100))%)")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.9))
+                }
             }
             .padding(.top, 40)
 

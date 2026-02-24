@@ -5,6 +5,8 @@ import SwiftUI
 final class SemanticGameController: ObservableObject {
     @Published var wordInput: String = ""
     @Published var isDemoMode: Bool = true
+    @Published var lastScore: ScoreResult?
+    @Published var lastScoredWord: String?
 
     let scene3D: GameScene3D
     private let manager: SemanticEmbeddingManager
@@ -62,8 +64,18 @@ final class SemanticGameController: ObservableObject {
             return
         }
 
+        // 重さは文字数ベースでざっくり設定（長い単語ほど重い）。
+        let baseMass = max(0.5, min(3.0, Double(lowercased.count) / 3.0))
+
         // セマンティック座標をそのままボード上の局所座標にマッピング。
-        scene3D.addDisc(atSemanticPosition: semanticPos, color: .systemTeal)
+        scene3D.addDisc(atSemanticPosition: semanticPos, color: .systemTeal, mass: baseMass)
+
+        // 手動入力時のみスコアリング（デモモードの自動落下はスコアなし）。
+        if !isDemoMode {
+            let result = ScoringEngine.evaluateAccuracy(input: word, target: word)
+            lastScore = result
+            lastScoredWord = word
+        }
     }
 }
 

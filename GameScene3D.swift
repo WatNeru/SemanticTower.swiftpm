@@ -12,6 +12,12 @@ final class GameScene3D {
     let scene: SCNScene
     let cameraNode: SCNNode
     private let boardNode: SCNNode
+    private var currentAngle: CGFloat = 0
+    private struct SemanticDisc {
+        let position: CGPoint
+        let mass: Double
+    }
+    private var discs: [SemanticDisc] = []
 
     init() {
         scene = SCNScene()
@@ -66,22 +72,9 @@ final class GameScene3D {
         addAnchorLabels()
     }
 
-    /// セマンティック重心に応じて土台の傾き（Z軸回転）を更新。
-    /// centerOfMass.x は [-1, 1] を想定。
-    func updateBoardTilt(centerOfMass: CGPoint) {
-        let maxAngle: CGFloat = .pi / 6 // 約30度
-        let clampedX = max(-1.0, min(1.0, Double(centerOfMass.x)))
-        let targetAngle = CGFloat(clampedX) * maxAngle
-
-        SCNTransaction.begin()
-        SCNTransaction.animationDuration = 0.2
-        boardNode.eulerAngles.z = Float(targetAngle)
-        SCNTransaction.commit()
-    }
-
     /// セマンティック座標をボード上の位置にマッピングしてディスクを追加。
     /// position は [-1, 1] の範囲を想定。
-    func addDisc(atSemanticPosition position: CGPoint, color: UIColor) {
+    func addDisc(atSemanticPosition position: CGPoint, color: UIColor, mass: Double) {
         let radius: CGFloat = 0.3
         let height: CGFloat = 0.2
 
@@ -100,7 +93,7 @@ final class GameScene3D {
 
         // 動的な物理ボディ：重いけれどあまり弾まない設定。
         let body = SCNPhysicsBody.dynamic()
-        body.mass = 1.0
+        body.mass = CGFloat(mass)
         body.restitution = 0.05   // 反発をかなり低めに
         body.friction = 0.9       // すべりにくく
         body.angularDamping = 0.3
@@ -108,6 +101,9 @@ final class GameScene3D {
         node.physicsBody = body
 
         scene.rootNode.addChildNode(node)
+
+        discs.append(SemanticDisc(position: position, mass: mass))
+        updateTiltFromDiscs()
     }
 
     private func addAnchorLabels() {
@@ -146,6 +142,45 @@ final class GameScene3D {
         objectNode.position = SCNVector3(0, 1.6, -3.2)
         objectNode.eulerAngles = SCNVector3(-Float.pi / 2, 0, 0)
         scene.rootNode.addChildNode(objectNode)
+    }
+
+    /// 現在積まれているディスクのセマンティック重心から、ターゲットの傾きを決める。
+    private func updateTiltFromDiscs() {
+        guard !discs.isEmpty else { return }
+
+        var totalMass: Double = 0
+        var weightedX: Double = 0
+
+        for disc in discs {
+            totalMass += disc.mass
+            weightedX += Double(disc.position.x) * disc.mass
+        }
+
+        guard totalMass > 0 else { return }
+        let centerX = weightedX / totalMass
+        let center = CGPoint(x: centerX, y: 0)
+        updateBoardTilt(centerOfMass: center)
+    }
+
+    /// セマンティック重心に応じて土台の傾き（Z軸回転）を更新。
+    /// centerOfMass.x は [-1, 1] を想定。傾きの角速度は等速にする。
+    private func updateBoardTilt(centerOfMass: CGPoint) {
+        let maxAngle: CGFloat = .pi / 6 // 約30度
+        let clampedX = max(-1.0, min(1.0, Double(centerOfMass.x)))
+        let targetAngle = CGFloat(clampedX) * maxAngle
+
+        let delta = targetAngle - currentAngle
+        guard abs(delta) > 0.001 else { return }
+
+        let angularSpeed: CGFloat = .pi / 4 // 45度/秒
+        let duration = max(0.05, TimeInterval(abs(delta) / angularSpeed))
+
+        SCNTransaction.begin()
+        SCNTransaction.animationDuration = duration
+        boardNode.eulerAngles.z = Float(targetAngle)
+        SCNTransaction.commit()
+
+        currentAngle = targetAngle
     }
 }
 
