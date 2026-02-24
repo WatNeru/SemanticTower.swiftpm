@@ -3,7 +3,7 @@ import SceneKit
 
 /// SceneKit ベースの3Dゲームビュー。
 struct GameView3D: View {
-    private let scene3D = GameScene3D()
+    let scene3D: GameScene3D
 
     var body: some View {
         SceneView(

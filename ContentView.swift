@@ -1,9 +1,11 @@
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var controller = SemanticGameController()
+
     var body: some View {
         ZStack {
-            GameView3D()
+            GameView3D(scene3D: controller.scene3D)
 
             VStack(spacing: 8) {
                 Text("Semantic Tower Battle")
@@ -16,6 +18,33 @@ struct ContentView: View {
                     .foregroundColor(.white.opacity(0.8))
             }
             .padding(.top, 40)
+
+            VStack {
+                Spacer()
+                HStack {
+                    TextField("type a word…", text: $controller.wordInput)
+                        .textInputAutocapitalization(.never)
+                        .disableAutocorrection(true)
+                        .padding(10)
+                        .background(Color.black.opacity(0.4))
+                        .cornerRadius(12)
+                        .foregroundColor(.white)
+
+                    Button {
+                        controller.dropCurrentWord()
+                    } label: {
+                        Text("Drop")
+                            .fontWeight(.semibold)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.white.opacity(0.9))
+                            .foregroundColor(.black)
+                            .cornerRadius(10)
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 32)
+            }
         }
         .onAppear {
             SemanticDemoRunner.run()
