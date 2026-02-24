@@ -1,45 +1,89 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var controller = SemanticGameController()
+    @State private var controller: SemanticGameController?
+
+    var body: some View {
+        Group {
+            if let controller = controller {
+                mainContent(controller)
+            } else {
+                loadingView
+            }
+        }
+        .task {
+            guard controller == nil else { return }
+            // 1フレーム待ってローディング表示を描画してから初期化（NLEmbedding 読み込みでメインスレッドがブロックされる）
+            try? await Task.sleep(nanoseconds: 50_000_000)  // 50ms
+            let c = SemanticGameController()
+            controller = c
+        }
+        .onAppear {
+            Task.detached(priority: .utility) {
+                SemanticDemoRunner.run()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func mainContent(_ controller: SemanticGameController) -> some View {
+        GameContentView(controller: controller)
+    }
+
+    private var loadingView: some View {
+        ZStack {
+            Color(.systemBackground).ignoresSafeArea()
+            VStack(spacing: 16) {
+                ProgressView()
+                    .scaleEffect(1.5)
+                Text("Loading semantic engine…")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+// MARK: - ゲームメインコンテンツ（@ObservedObject で Binding を正しく扱う）
+
+private struct GameContentView: View {
+    @ObservedObject var controller: SemanticGameController
 
     var body: some View {
         ZStack {
             GameView3D(scene3D: controller.scene3D)
 
-            // 上部: タイトル・スコア（Liquid Glass / マテリアル風パネル）
-            VStack(spacing: 0) {
-                GlassPanel {
-                    VStack(spacing: 8) {
-                        Text("Semantic Tower Battle")
-                            .font(.title2.bold())
-                            .foregroundStyle(.primary)
+            GlassOverlayContainer(spacing: 40) {
+                VStack(spacing: 0) {
+                    GlassPanel {
+                        VStack(spacing: 8) {
+                            Text("Semantic Tower Battle")
+                                .font(.title2.bold())
+                                .foregroundStyle(.primary)
 
-                        Text(controller.isDemoMode ? "Demo mode: preset words" : inputModeLabel)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-
-                        if let score = controller.lastScore, let word = controller.lastScoredWord {
-                            Text("\(rankLabelText(from: score.rank)): \"\(word)\" (\(Int(score.accuracy * 100))%)")
-                                .font(.caption)
+                            Text(controller.isDemoMode ? "Demo mode: preset words" : inputModeLabel)
+                                .font(.footnote)
                                 .foregroundStyle(.secondary)
+
+                            if let score = controller.lastScore, let word = controller.lastScoredWord {
+                                Text("\(rankLabelText(from: score.rank)): \"\(word)\" (\(Int(score.accuracy * 100))%)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 48)
+
+                    CompassOverlayView()
+                        .padding(.top, 12)
+                        .padding(.trailing, 24)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+
+                    Spacer()
+                    inputArea
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 48)
-
-                Spacer()
             }
-
-            // 下部: 入力・操作（一体化ガラスパネル）
-            VStack {
-                Spacer()
-                inputArea
-            }
-        }
-        .onAppear {
-            SemanticDemoRunner.run()
         }
         .sensoryFeedbackForScore(controller.lastScore)
     }
@@ -51,10 +95,8 @@ struct ContentView: View {
         }
     }
 
-    @ViewBuilder
     private var inputArea: some View {
         VStack(spacing: 12) {
-            // 入力モード切り替え
             if !controller.isDemoMode {
                 Picker("Input", selection: $controller.inputMode) {
                     ForEach(InputMode.allCases, id: \.self) { mode in
@@ -95,18 +137,16 @@ struct ContentView: View {
 
     private var handwritingInputArea: some View {
         VStack(spacing: 10) {
-            // 手書きキャンバス（仕様: iPad 画面下部に Apple Pencil / 指で記述）
             HandwritingCanvasView(
                 drawing: $controller.handwritingDrawing,
                 canvasSize: CGSize(width: 340, height: 80)
             )
             .frame(height: 80)
-            .background(Color.white.opacity(0.95))
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .disabled(controller.isDemoMode)
 
             if let rec = controller.lastRecognitionResult, !rec.text.isEmpty {
-                // 認識結果を赤ハイライト付きで表示（仕様: 認識されなかった文字を赤く表示）
                 RecognizedTextFeedbackView(result: rec)
                     .font(.subheadline.monospaced())
             }

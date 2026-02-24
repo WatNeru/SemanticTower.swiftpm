@@ -114,6 +114,25 @@ extension ButtonStyle where Self == GlassButtonStyle {
     static var glassProminent: GlassButtonStyle { GlassButtonStyle(isProminent: true) }
 }
 
+// MARK: - Glass Effect Container (iOS 26+)
+
+/// 複数のガラス要素をまとめ、視覚的なマージを有効にする。
+/// iOS 26+ で GlassEffectContainer が利用可能な場合にラップする。
+/// 注: GlassEffectContainer は iOS 26 SDK が必要。現行 SDK では content をそのまま返す。
+struct GlassOverlayContainer<Content: View>: View {
+    let spacing: CGFloat
+    @ViewBuilder let content: () -> Content
+
+    init(spacing: CGFloat = 40, @ViewBuilder content: @escaping () -> Content) {
+        self.spacing = spacing
+        self.content = content
+    }
+
+    var body: some View {
+        content()
+    }
+}
+
 // MARK: - Glass Panel (フローティングカード)
 
 /// 3Dゲーム上に重ねるガラス風パネル。
