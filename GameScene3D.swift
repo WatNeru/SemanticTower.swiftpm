@@ -271,37 +271,44 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
     }
 
     private func addAnchorLabels() {
-        let font = UIFont.systemFont(ofSize: 0.4, weight: .semibold)
+        // 大きく太いフォント（辺に平行・中心から読める向き）
+        let font = UIFont.systemFont(ofSize: 0.6, weight: .bold)
 
         func makeTextNode(_ text: String) -> SCNNode {
-            let textGeometry = SCNText(string: text, extrusionDepth: 0.02)
+            let textGeometry = SCNText(string: text, extrusionDepth: 0.03)
             textGeometry.font = font
             textGeometry.firstMaterial?.diffuse.contents = UIColor.systemYellow
+            textGeometry.firstMaterial?.specular.contents = UIColor.white
+            textGeometry.firstMaterial?.emission.contents = UIColor.systemYellow.withAlphaComponent(0.2)
+            textGeometry.flatness = 0.1  // 滑らかな曲線
             let node = SCNNode(geometry: textGeometry)
             let (minVec, maxVec) = textGeometry.boundingBox
             let width = maxVec.x - minVec.x
             node.pivot = SCNMatrix4MakeTranslation((minVec.x + width / 2), minVec.y, 0)
-            node.scale = SCNVector3(0.3, 0.3, 0.3)
+            node.scale = SCNVector3(0.4, 0.4, 0.4)  // より大きく
             return node
         }
 
-        // X軸: Nature (+X), Machine (-X)
+        // 各辺に平行に配置し、中心から正しい向きで読めるように回転
+        // X軸右辺 (+X): 辺はZ方向 → 文字をZに平行、中心(-X)向き
         let natureNode = makeTextNode("Nature")
         natureNode.position = SCNVector3(3.2, 1.6, 0)
-        natureNode.eulerAngles = SCNVector3(-Float.pi / 2, 0, 0)
+        natureNode.eulerAngles = SCNVector3(-Float.pi / 2, Float.pi / 2, 0)
         scene.rootNode.addChildNode(natureNode)
 
+        // X軸左辺 (-X): 辺はZ方向 → 中心(+X)向き
         let machineNode = makeTextNode("Machine")
         machineNode.position = SCNVector3(-3.2, 1.6, 0)
-        machineNode.eulerAngles = SCNVector3(-Float.pi / 2, 0, 0)
+        machineNode.eulerAngles = SCNVector3(-Float.pi / 2, -Float.pi / 2, 0)
         scene.rootNode.addChildNode(machineNode)
 
-        // Y軸（セマンティックでは垂直）を Z 方向に対応させる: Living (+Z), Object (-Z)
+        // Z軸上辺 (+Z): 辺はX方向 → 文字をXに平行、中心(-Z)向き
         let livingNode = makeTextNode("Living")
         livingNode.position = SCNVector3(0, 1.6, 3.2)
-        livingNode.eulerAngles = SCNVector3(-Float.pi / 2, 0, 0)
+        livingNode.eulerAngles = SCNVector3(-Float.pi / 2, Float.pi, 0)
         scene.rootNode.addChildNode(livingNode)
 
+        // Z軸下辺 (-Z): 辺はX方向 → 中心(+Z)向き
         let objectNode = makeTextNode("Object")
         objectNode.position = SCNVector3(0, 1.6, -3.2)
         objectNode.eulerAngles = SCNVector3(-Float.pi / 2, 0, 0)
@@ -347,20 +354,21 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
     }
 
     private func addTargetMarker() {
-        // 薄い円環（トーラス）で「ここに落とす」を表示
+        // 薄い円環（トーラス）で「ここに落とす」を表示。横向き楕円状にスケール。
         let torus = SCNTorus(ringRadius: 0.35, pipeRadius: 0.03)
         let mat = SCNMaterial()
 #if canImport(UIKit)
-        mat.diffuse.contents = UIColor.systemBlue.withAlphaComponent(0.7)
-        mat.emission.contents = UIColor.systemBlue.withAlphaComponent(0.3)
+        mat.diffuse.contents = UIColor.systemBlue.withAlphaComponent(0.8)
+        mat.emission.contents = UIColor.systemBlue.withAlphaComponent(0.4)
 #else
-        mat.diffuse.contents = NSColor.systemBlue.withAlphaComponent(0.7)
-        mat.emission.contents = NSColor.systemBlue.withAlphaComponent(0.3)
+        mat.diffuse.contents = NSColor.systemBlue.withAlphaComponent(0.8)
+        mat.emission.contents = NSColor.systemBlue.withAlphaComponent(0.4)
 #endif
         mat.transparency = 0.9
         torus.materials = [mat]
         let node = SCNNode(geometry: torus)
-        node.eulerAngles.x = Float.pi / 2  // 水平に表示
+        // 円を横にする: Z軸に垂直（XZ平面）＝ボード上面に水平。SCNTorusはデフォルトでXY平面→X軸で-90°でXZへ。
+        node.eulerAngles.x = -Float.pi / 2
         node.position = SCNVector3(0, 0.21, 0)  // ボード上面よりわずかに上
         node.name = "targetMarker"
         boardNode.addChildNode(node)
