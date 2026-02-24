@@ -189,44 +189,53 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         }
 
         // 個数や重みには依存させず、「幾何学的な中心」だけを見る。
-        // 盤上ディスクの現在の物理位置から重心を取り直す。
-        let sumX = activeDiscs.reduce(0.0) { partial, disc in
-            let worldX = Double(disc.node.presentation.position.x)
-            // もともと [-1, 1] を *2.5 してボード上に置いているので、逆変換で正規化する。
+        // 盤上ディスクの現在の物理位置から、上から見た X/Z を [-1, 1] に正規化して平均する。
+        let (sumX, sumY) = activeDiscs.reduce(into: (0.0, 0.0)) { acc, disc in
+            let worldPos = disc.node.presentation.position
+            let worldX = Double(worldPos.x)
+            let worldZ = Double(worldPos.z)
+            // ボード半幅・半奥行きを 2.5 とみなして正規化。
             let normalizedX = max(-1.0, min(1.0, worldX / 2.5))
-            return partial + normalizedX
+            let normalizedY = max(-1.0, min(1.0, worldZ / 2.5))
+            acc.0 += normalizedX
+            acc.1 += normalizedY
         }
-        let centerX = sumX / Double(activeDiscs.count)
-        let center = CGPoint(x: centerX, y: 0)
+        let count = Double(activeDiscs.count)
+        let centerX = sumX / count
+        let centerY = sumY / count
+        let center = CGPoint(x: centerX, y: centerY)
 
         // デバッグ用ログ: ディスク配置と重心を出力。
-        let positionsSummary = activeDiscs
-            .map { d in
-                let worldX = d.node.presentation.position.x
-                return String(format: "%.2f", worldX)
-            }
+        let positionsSummaryX = activeDiscs
+            .map { String(format: "%.2f", $0.node.presentation.position.x) }
             .joined(separator: ", ")
-        let centerStr = String(format: "%.3f", centerX)
-        print("[Tilt] activeDiscs=\(activeDiscs.count), xPositions=[\(positionsSummary)], centerX=\(centerStr)")
+        let positionsSummaryZ = activeDiscs
+            .map { String(format: "%.2f", $0.node.presentation.position.z) }
+            .joined(separator: ", ")
+        let centerXStr = String(format: "%.3f", centerX)
+        let centerYStr = String(format: "%.3f", centerY)
+        print("[Tilt] activeDiscs=\(activeDiscs.count), x=[\(positionsSummaryX)], z=[\(positionsSummaryZ)], center=(\(centerXStr), \(centerYStr))")
 
         updateBoardTilt(centerOfMass: center)
     }
 
-    /// セマンティック重心に応じて土台の傾き（Z軸回転）を更新。
-    /// centerOfMass.x は [-1, 1] を想定。
+    /// セマンティック重心に応じて土台の傾き（X/Z軸回転）を更新。
+    /// centerOfMass.x / y はともに [-1, 1] を想定。
     /// 傾きの角速度は常に等速で、十分に傾くとディスクがすべて落ちる。
     private func updateBoardTilt(centerOfMass: CGPoint) {
-        // ゲームとしては大きく傾いてすべて落ちるところまで回転させたいので、
-        // 最大角度を約80度に設定する。
         // 画面上で分かりやすく、かつ極端すぎない程度の最大傾き。
         let maxAngle: CGFloat = .pi / 3 // ≈60度
         let clampedX = max(-1.0, min(1.0, Double(centerOfMass.x)))
+        let clampedY = max(-1.0, min(1.0, Double(centerOfMass.y)))
 
-        // 重心が右に寄っているときは左に倒す（重心の逆向きに傾ける）。
+        // 重心Xが右に寄っているときは左に倒す（重心の逆向きにロール）。
         // X = -1 → +maxAngle, X = 0 → 0, X = +1 → -maxAngle。
-        let targetAngle = -CGFloat(clampedX) * maxAngle
+        let targetRollZ = -CGFloat(clampedX) * maxAngle
+        // 重心Yが手前（+Z方向）に寄っているときは手前に倒す（前後方向のピッチ）。
+        // Y = -1 → -maxAngle, Y = 0 → 0, Y = +1 → +maxAngle。
+        let targetPitchX = CGFloat(clampedY) * maxAngle
 
-        let delta = targetAngle - currentAngle
+        let delta = targetRollZ - currentAngle
         guard abs(delta) > 0.001 else { return }
 
         // ゲームらしく「ゆっくり倒れていく」感覚を出すために 3度/秒程度に抑える。
@@ -235,10 +244,11 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
 
         SCNTransaction.begin()
         SCNTransaction.animationDuration = duration
-        boardNode.eulerAngles.z = Float(targetAngle)
+        boardNode.eulerAngles.x = Float(targetPitchX)
+        boardNode.eulerAngles.z = Float(targetRollZ)
         SCNTransaction.commit()
 
-        currentAngle = targetAngle
+        currentAngle = targetRollZ
     }
 
     // MARK: - SCNPhysicsContactDelegate
