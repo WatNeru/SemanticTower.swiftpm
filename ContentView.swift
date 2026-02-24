@@ -13,9 +13,9 @@ struct ContentView: View {
                     .foregroundColor(.white)
                     .shadow(radius: 8)
 
-                Text("（今はデモとして盤面だけがグラグラ揺れます）")
+                Text(controller.isDemoMode ? "Demo mode: preset words" : "Manual mode: type any word")
                     .font(.footnote)
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundColor(.white.opacity(0.85))
             }
             .padding(.top, 40)
 
@@ -29,6 +29,7 @@ struct ContentView: View {
                         .background(Color.black.opacity(0.4))
                         .cornerRadius(12)
                         .foregroundColor(.white)
+                        .disabled(controller.isDemoMode)
 
                     Button {
                         controller.dropCurrentWord()
@@ -39,6 +40,18 @@ struct ContentView: View {
                             .padding(.vertical, 8)
                             .background(Color.white.opacity(0.9))
                             .foregroundColor(.black)
+                            .cornerRadius(10)
+                    }
+
+                    Button {
+                        controller.isDemoMode.toggle()
+                    } label: {
+                        Text(controller.isDemoMode ? "Demo" : "Manual")
+                            .font(.footnote.weight(.semibold))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.black.opacity(0.5))
+                            .foregroundColor(.white)
                             .cornerRadius(10)
                     }
                 }
