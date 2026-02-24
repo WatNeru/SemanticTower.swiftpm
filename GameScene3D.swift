@@ -6,13 +6,33 @@ import UIKit
 import AppKit
 #endif
 
+// MARK: - 物理パラメータ（ドロップ系スタッキングのベストプラクティス準拠）
+// 参考: Stack Overflow "What SpriteKit physics properties are needed for stacking and balancing",
+//       SceneKit friction/restitution, Kodeco SceneKit Physics Tutorial
+private enum PhysicsConfig {
+    /// 摩擦: 1.0 で最大の「くっつき」、オブジェクトがボードと一緒に動く
+    static let friction: CGFloat = 1.0
+    /// 反発: 0.05 で跳ねを抑え、スタッキングを安定させる
+    static let restitution: CGFloat = 0.05
+    /// 円柱の過剰な転がりを防ぐ（ディスク用）
+    static let rollingFriction: CGFloat = 1.0
+    /// 安定化のための減衰（0.05–0.1 が推奨）
+    static let linearDamping: CGFloat = 0.1
+    static let angularDamping: CGFloat = 0.1
+    /// 傾きの角速度（ラジアン/秒）
+    static let tiltAngularSpeed: CGFloat = .pi / 60  // 約3度/秒
+}
+
 /// タワーの土台を3Dで表現するシーン。
 /// セマンティック重心に応じてボードを傾ける。
+/// ドロップ系物理: kinematic ボード + dynamic ディスク、高摩擦・低反発でスタッキング安定化。
 final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
     let scene: SCNScene
     let cameraNode: SCNNode
     private var boardNode: SCNNode
-    private var currentAngle: CGFloat = 0
+    /// 現在の傾き（X=ピッチ, Z=ロール）。フレームごとに補間して physics と同期。
+    private var currentPitchX: CGFloat = 0
+    private var currentRollZ: CGFloat = 0
     private struct SemanticDisc {
         let node: SCNNode
         var isOnBoard: Bool
@@ -58,10 +78,10 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
 #else
         floorNode.geometry?.firstMaterial?.diffuse.contents = NSColor.darkGray
 #endif
-        // 床は静的な物理ボディとして扱う。
+        // 床は静的な物理ボディ。低反発・高摩擦で落ちたディスクの跳ねを抑える。
         let floorBody = SCNPhysicsBody.static()
-        floorBody.restitution = 0.05
-        floorBody.friction = 1.0
+        floorBody.restitution = PhysicsConfig.restitution
+        floorBody.friction = PhysicsConfig.friction
         floorBody.categoryBitMask = PhysicsCategory.floor
         floorBody.contactTestBitMask = PhysicsCategory.disc
         floorNode.physicsBody = floorBody
@@ -79,10 +99,11 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
 #endif
         boardNode = SCNNode(geometry: boardGeometry)
         boardNode.position = SCNVector3(0, 1.0, 0)
-        // 土台は「手で動かす」オブジェクトなので、運動学的ボディにする。
+        // 土台は kinematic: コードで傾きを制御し、その上に乗る dynamic オブジェクトと衝突する。
+        // 高摩擦でディスクがボードと一緒に動く（position 移動時も friction が効く）。
         let boardBody = SCNPhysicsBody.kinematic()
-        boardBody.restitution = 0.05
-        boardBody.friction = 0.9
+        boardBody.restitution = PhysicsConfig.restitution
+        boardBody.friction = PhysicsConfig.friction
         boardBody.categoryBitMask = PhysicsCategory.board
         boardBody.contactTestBitMask = PhysicsCategory.disc
         boardNode.physicsBody = boardBody
@@ -117,13 +138,14 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         let startY: Float = 4.0
         node.position = SCNVector3(localX, startY, localZ)
 
-        // 動的な物理ボディ：重いけれどあまり弾まない設定。
+        // 動的な物理ボディ：スタッキング向けに高摩擦・低反発・高 rollingFriction。
         let body = SCNPhysicsBody.dynamic()
         body.mass = CGFloat(mass)
-        body.restitution = 0.05   // 反発をかなり低めに
-        body.friction = 0.9       // すべりにくく
-        body.angularDamping = 0.3
-        body.damping = 0.2
+        body.restitution = PhysicsConfig.restitution
+        body.friction = PhysicsConfig.friction
+        body.rollingFriction = PhysicsConfig.rollingFriction  // 円柱の過剰な転がりを防ぐ
+        body.angularDamping = PhysicsConfig.angularDamping
+        body.damping = PhysicsConfig.linearDamping
         // すり抜け防止のため、ある程度の速さ以上で連続衝突判定を有効にする。
         body.continuousCollisionDetectionThreshold = 0.01
         body.categoryBitMask = PhysicsCategory.disc
@@ -204,51 +226,36 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         let centerX = sumX / count
         let centerY = sumY / count
         let center = CGPoint(x: centerX, y: centerY)
-
-        // デバッグ用ログ: ディスク配置と重心を出力。
-        let positionsSummaryX = activeDiscs
-            .map { String(format: "%.2f", $0.node.presentation.position.x) }
-            .joined(separator: ", ")
-        let positionsSummaryZ = activeDiscs
-            .map { String(format: "%.2f", $0.node.presentation.position.z) }
-            .joined(separator: ", ")
-        let centerXStr = String(format: "%.3f", centerX)
-        let centerYStr = String(format: "%.3f", centerY)
-        print("[Tilt] activeDiscs=\(activeDiscs.count), x=[\(positionsSummaryX)], z=[\(positionsSummaryZ)], center=(\(centerXStr), \(centerYStr))")
-
         updateBoardTilt(centerOfMass: center)
     }
 
     /// セマンティック重心に応じて土台の傾き（X/Z軸回転）を更新。
     /// centerOfMass.x / y はともに [-1, 1] を想定。
-    /// 傾きの角速度は常に等速で、十分に傾くとディスクがすべて落ちる。
+    /// フレームごとに補間して更新し、physics エンジンと同期させる（SCNTransaction は避ける）。
     private func updateBoardTilt(centerOfMass: CGPoint) {
-        // 画面上で分かりやすく、かつ極端すぎない程度の最大傾き。
-        let maxAngle: CGFloat = .pi / 3 // ≈60度
+        let maxAngle: CGFloat = .pi / 3  // ≈60度
         let clampedX = max(-1.0, min(1.0, Double(centerOfMass.x)))
         let clampedY = max(-1.0, min(1.0, Double(centerOfMass.y)))
 
-        // 重心Xが右に寄っているときは左に倒す（重心の逆向きにロール）。
-        // X = -1 → +maxAngle, X = 0 → 0, X = +1 → -maxAngle。
         let targetRollZ = -CGFloat(clampedX) * maxAngle
-        // 重心Yが手前（+Z方向）に寄っているときは手前に倒す（前後方向のピッチ）。
-        // Y = -1 → -maxAngle, Y = 0 → 0, Y = +1 → +maxAngle。
         let targetPitchX = CGFloat(clampedY) * maxAngle
 
-        let delta = targetRollZ - currentAngle
-        guard abs(delta) > 0.001 else { return }
+        // 角速度に応じてフレームごとに補間（0.1秒間隔のタイマー想定）
+        let dt: CGFloat = 0.1
+        let maxDelta = PhysicsConfig.tiltAngularSpeed * dt
 
-        // ゲームらしく「ゆっくり倒れていく」感覚を出すために 3度/秒程度に抑える。
-        let angularSpeed: CGFloat = .pi / 60 // 3度/秒
-        let duration = max(0.05, TimeInterval(abs(delta) / angularSpeed))
+        func stepToward(current: CGFloat, target: CGFloat) -> CGFloat {
+            let delta = target - current
+            if abs(delta) < 0.001 { return target }
+            let step = min(abs(delta), maxDelta) * (delta > 0 ? 1 : -1)
+            return current + step
+        }
 
-        SCNTransaction.begin()
-        SCNTransaction.animationDuration = duration
-        boardNode.eulerAngles.x = Float(targetPitchX)
-        boardNode.eulerAngles.z = Float(targetRollZ)
-        SCNTransaction.commit()
+        currentPitchX = stepToward(current: currentPitchX, target: targetPitchX)
+        currentRollZ = stepToward(current: currentRollZ, target: targetRollZ)
 
-        currentAngle = targetRollZ
+        boardNode.eulerAngles.x = Float(currentPitchX)
+        boardNode.eulerAngles.z = Float(currentRollZ)
     }
 
     // MARK: - SCNPhysicsContactDelegate
