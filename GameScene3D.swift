@@ -68,7 +68,8 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         scene.rootNode.addChildNode(floorNode)
 
         // タワーの土台（傾ける板）
-        let boardGeometry = SCNBox(width: 6, height: 0.3, length: 6, chamferRadius: 0.2)
+        // 以前の当たり判定位置に近づけるため、高さを少し厚めに戻す。
+        let boardGeometry = SCNBox(width: 6, height: 0.4, length: 6, chamferRadius: 0.2)
 #if canImport(UIKit)
         boardGeometry.firstMaterial?.diffuse.contents = UIColor.white
 #else
@@ -82,9 +83,6 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         boardBody.friction = 0.9
         boardBody.categoryBitMask = PhysicsCategory.board
         boardBody.contactTestBitMask = PhysicsCategory.disc
-        // 見た目より少し薄い当たり判定にして、天面に近い位置で接触させる。
-        let collisionShape = SCNBox(width: 6, height: 0.1, length: 6, chamferRadius: 0)
-        boardBody.physicsShape = SCNPhysicsShape(geometry: collisionShape, options: nil)
         boardNode.physicsBody = boardBody
         scene.rootNode.addChildNode(boardNode)
 
@@ -107,8 +105,10 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
 
         let node = SCNNode(geometry: geometry)
 
-        // ボードは width=6, length=6。端から少し内側に収まるよう 2.5 を掛ける。
-        let localX = Float(position.x) * 2.5
+        // ボードは width=6, length=6。セマンティック座標を少し強調して左右に広げる。
+        // [-1, 1] のセマンティックXを 4倍してから [-1, 1] に再クリップし、ボード半幅(≈3)の内側に収める。
+        let semanticScaledX = max(-1.0, min(1.0, position.x * 4.0))
+        let localX = Float(semanticScaledX) * 2.5
         let localZ = Float(position.y) * 2.5
 
         // 上の方から自由落下させるため、Y を高めに設定。
@@ -192,9 +192,7 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
             let worldX = Double(disc.node.presentation.position.x)
             // もともと [-1, 1] を *2.5 してボード上に置いているので、逆変換で正規化する。
             let normalizedX = max(-1.0, min(1.0, worldX / 2.5))
-            // さらに傾き用に少し強調する（例: 2倍）。
-            let scaledForTilt = max(-1.0, min(1.0, normalizedX * 2.0))
-            return partial + scaledForTilt
+            return partial + normalizedX
         }
         let centerX = sumX / Double(activeDiscs.count)
         let center = CGPoint(x: centerX, y: 0)
@@ -221,15 +219,13 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         // 画面上で分かりやすく、かつ極端すぎない程度の最大傾き。
         let maxAngle: CGFloat = .pi / 3 // ≈60度
         let clampedX = max(-1.0, min(1.0, Double(centerOfMass.x)))
-        let epsilon = 0.05
 
+        // 右に重心があれば常に +maxAngle、左なら -maxAngle を
+        // 一定の角速度で目指す。完全にゼロのときだけ水平。
         let targetAngle: CGFloat
-        if abs(clampedX) < epsilon {
-            // ほぼバランスしているときは水平に戻す。
+        if clampedX == 0 {
             targetAngle = 0
         } else {
-            // 右に重心があれば常に +maxAngle、左なら -maxAngle を
-            // 一定の角速度で目指す。
             let sign: CGFloat = clampedX >= 0 ? 1 : -1
             targetAngle = sign * maxAngle
         }
@@ -261,10 +257,13 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         if (categoryA == PhysicsCategory.disc && categoryB == PhysicsCategory.board) ||
             (categoryA == PhysicsCategory.board && categoryB == PhysicsCategory.disc) {
             let discNode = categoryA == PhysicsCategory.disc ? nodeA : nodeB
-            // ボードの「天面」付近との接触だけを盤上とみなす（側面との一時的な接触を除外）。
-            let boardY = boardNode.presentation.position.y
-            let contactY = contact.contactPoint.y
-            if contactY < boardY + 0.15 {
+            // ボードローカル座標系で接触点を見て、傾きに応じた「天面近傍」だけを盤上とみなす。
+            let localPoint = boardNode.presentation.convertPosition(contact.contactPoint, from: nil)
+            let (_, maxBounds) = boardNode.boundingBox
+            let topY = maxBounds.y
+            let epsilon: Float = 0.02
+            // 側面や下面との接触は無視する。
+            if localPoint.y < topY - epsilon {
                 return
             }
             if let index = discs.firstIndex(where: { $0.node === discNode }) {
