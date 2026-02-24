@@ -154,7 +154,7 @@ private struct GameContentView: View {
             if let err = controller.recognitionError {
                 Text(err)
                     .font(.caption2)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(.red)  // エラー表示: システム色でアクセシビリティ対応
             }
 
             HStack(spacing: 12) {

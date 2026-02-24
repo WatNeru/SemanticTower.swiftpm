@@ -9,6 +9,7 @@ import AppKit
 /// セマンティック座標（Nature↔Machine, Living↔Object）から色を算出するユーティリティ。
 /// X軸: 緑系(Nature) ↔ 青/紫系(Machine)
 /// Y軸: 暖色(Living) ↔ 冷色(Object) のブレンド
+/// アクセシビリティ: 色覚多様性に配慮し、緑-青・暖色-冷色で区別しやすいパレットを使用。
 enum SemanticColorHelper {
 #if canImport(UIKit)
     typealias PlatformColor = UIColor
@@ -25,20 +26,19 @@ enum SemanticColorHelper {
         let clampedY = max(-1, min(1, y))
 
         // X軸: Nature(緑系) ↔ Machine(青/紫系)
-        // x=+1 → 緑, x=-1 → 青紫
-        let natureGreen = PlatformColor(red: 0.2, green: 0.75, blue: 0.4, alpha: 1.0)
-        let machineBlue = PlatformColor(red: 0.35, green: 0.45, blue: 0.85, alpha: 1.0)
+        // 色覚多様性: 緑と青は区別しやすい組み合わせ。彩度をやや高めて識別性を向上。
+        let natureGreen = PlatformColor(red: 0.15, green: 0.72, blue: 0.38, alpha: 1.0)
+        let machineBlue = PlatformColor(red: 0.28, green: 0.42, blue: 0.88, alpha: 1.0)
         let xBlend = (clampedX + 1) / 2  // 0..1
 
-        // Y軸: Living(暖色) ↔ Object(冷色) のブレンド係数
-        let livingWarm = 0.7  // 暖色の強さ
-        let objectCool = 0.3  // 冷色の強さ
+        // Y軸: Living(暖色・オレンジ系) ↔ Object(冷色・青緑系)
+        // 赤緑色覚の区別を考慮し、青みの強さで差別化
         let yBlend = (clampedY + 1) / 2  // 0..1
 
         // 2軸を組み合わせて色を補間
         let baseX = lerpColor(natureGreen, machineBlue, t: xBlend)
-        let warmTint = PlatformColor(red: 0.95, green: 0.7, blue: 0.4, alpha: 1.0)
-        let coolTint = PlatformColor(red: 0.6, green: 0.7, blue: 0.9, alpha: 1.0)
+        let warmTint = PlatformColor(red: 0.92, green: 0.58, blue: 0.25, alpha: 1.0)  // オレンジ寄り
+        let coolTint = PlatformColor(red: 0.35, green: 0.68, blue: 0.88, alpha: 1.0)  // シアン寄り
         let yTint = lerpColor(coolTint, warmTint, t: yBlend)
 
         return blendColors(baseX, yTint, amount: 0.35)

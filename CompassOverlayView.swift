@@ -30,6 +30,6 @@ struct CompassOverlayView: View {
     private func axisLabel(_ text: String) -> some View {
         Text(text)
             .font(.subheadline.weight(.bold))
-            .foregroundStyle(.primary.opacity(0.9))
+            .foregroundStyle(.primary)  // アクセシビリティ: 最大コントラストで可読性を確保
     }
 }

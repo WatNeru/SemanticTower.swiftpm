@@ -77,11 +77,12 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         scene.physicsWorld.contactDelegate = self
 
         // 環境（CAGradientLayer はシミュレータの Metal でクラッシュするため単色を使用）
-        #if canImport(UIKit)
-        scene.background.contents = UIColor(red: 0.85, green: 0.92, blue: 1.0, alpha: 1)
-        #else
-        scene.background.contents = NSColor(red: 0.85, green: 0.92, blue: 1.0, alpha: 1)
-        #endif
+        // アクセシビリティ: ややニュートラル寄りの青で、ラベル・ディスクとのコントラストを確保
+#if canImport(UIKit)
+        scene.background.contents = UIColor(red: 0.88, green: 0.93, blue: 0.98, alpha: 1)
+#else
+        scene.background.contents = NSColor(red: 0.88, green: 0.93, blue: 0.98, alpha: 1)
+#endif
 
         // カメラ
         cameraNode.camera = SCNCamera()
@@ -272,14 +273,21 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
 
     private func addAnchorLabels() {
         // 大きく太いフォント（辺に平行・中心から読める向き）
+        // アクセシビリティ: 明るい背景に対してWCAG 2.1 AA準拠の高コントラスト色を使用
         let font = UIFont.systemFont(ofSize: 0.6, weight: .bold)
 
         func makeTextNode(_ text: String) -> SCNNode {
             let textGeometry = SCNText(string: text, extrusionDepth: 0.03)
             textGeometry.font = font
-            textGeometry.firstMaterial?.diffuse.contents = UIColor.systemYellow
+            // ダークブルー: 明るい青背景(0.85,0.92,1.0)に対して視認性が高く、色覚多様性にも配慮
+#if canImport(UIKit)
+            let labelColor = UIColor(red: 0.12, green: 0.30, blue: 0.58, alpha: 1)
+#else
+            let labelColor = NSColor(red: 0.12, green: 0.30, blue: 0.58, alpha: 1)
+#endif
+            textGeometry.firstMaterial?.diffuse.contents = labelColor
             textGeometry.firstMaterial?.specular.contents = UIColor.white
-            textGeometry.firstMaterial?.emission.contents = UIColor.systemYellow.withAlphaComponent(0.2)
+            textGeometry.firstMaterial?.emission.contents = labelColor.withAlphaComponent(0.08)
             textGeometry.flatness = 0.1  // 滑らかな曲線
             let node = SCNNode(geometry: textGeometry)
             let (minVec, maxVec) = textGeometry.boundingBox
@@ -355,15 +363,16 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
 
     private func addTargetMarker() {
         // 薄い円環（トーラス）で「ここに落とす」を表示。横向き楕円状にスケール。
+        // アクセシビリティ: 視認性の高いインディゴ系（アンカーラベルと調和しつつ区別可能）
         let torus = SCNTorus(ringRadius: 0.35, pipeRadius: 0.03)
         let mat = SCNMaterial()
 #if canImport(UIKit)
-        mat.diffuse.contents = UIColor.systemBlue.withAlphaComponent(0.8)
-        mat.emission.contents = UIColor.systemBlue.withAlphaComponent(0.4)
+        let markerColor = UIColor(red: 0.35, green: 0.42, blue: 0.82, alpha: 1)
 #else
-        mat.diffuse.contents = NSColor.systemBlue.withAlphaComponent(0.8)
-        mat.emission.contents = NSColor.systemBlue.withAlphaComponent(0.4)
+        let markerColor = NSColor(red: 0.35, green: 0.42, blue: 0.82, alpha: 1)
 #endif
+        mat.diffuse.contents = markerColor.withAlphaComponent(0.9)
+        mat.emission.contents = markerColor.withAlphaComponent(0.35)
         mat.transparency = 0.9
         torus.materials = [mat]
         let node = SCNNode(geometry: torus)
