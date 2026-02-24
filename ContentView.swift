@@ -3,7 +3,7 @@ import SwiftUI
 struct ContentView: View {
     var body: some View {
         ZStack {
-            MainGameView()
+            GameView3D()
 
             VStack(spacing: 8) {
                 Text("Semantic Tower Battle")
@@ -88,11 +88,5 @@ enum SemanticDemoRunner {
     }
 }
 
-/// A local wrapper to disambiguate the correct GameView type and avoid ambiguous init errors.
-struct MainGameView: View {
-    var body: some View {
-        // Replace `GameView()` below with the fully qualified or intended game view
-        // if you have multiple GameView types across modules.
-        GameView()
-    }
-}
+// 将来、セマンティック重心に応じて GameScene3D.updateBoardTilt(centerOfMass:) を
+// 呼び出すための橋渡し用として、必要に応じて ViewModel をここに追加していく予定。
