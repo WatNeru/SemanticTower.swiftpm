@@ -7,7 +7,7 @@ import AppKit
 #endif
 
 /// タワーの土台を3Dで表現するシーン。
-/// 後でセマンティック重心に応じて傾きを変える。
+/// セマンティック重心に応じてボードを傾ける。
 final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
     let scene: SCNScene
     let cameraNode: SCNNode
@@ -15,7 +15,6 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
     private var currentAngle: CGFloat = 0
     private struct SemanticDisc {
         let node: SCNNode
-        let semanticX: Double
         var isOnBoard: Bool
     }
     private var discs: [SemanticDisc] = []
@@ -69,7 +68,7 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         scene.rootNode.addChildNode(floorNode)
 
         // タワーの土台（傾ける板）
-        let boardGeometry = SCNBox(width: 6, height: 0.4, length: 6, chamferRadius: 0.2)
+        let boardGeometry = SCNBox(width: 6, height: 0.3, length: 6, chamferRadius: 0.2)
 #if canImport(UIKit)
         boardGeometry.firstMaterial?.diffuse.contents = UIColor.white
 #else
@@ -83,10 +82,18 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         boardBody.friction = 0.9
         boardBody.categoryBitMask = PhysicsCategory.board
         boardBody.contactTestBitMask = PhysicsCategory.disc
+        // 見た目より少し薄い当たり判定にして、天面に近い位置で接触させる。
+        let collisionShape = SCNBox(width: 6, height: 0.1, length: 6, chamferRadius: 0)
+        boardBody.physicsShape = SCNPhysicsShape(geometry: collisionShape, options: nil)
         boardNode.physicsBody = boardBody
         scene.rootNode.addChildNode(boardNode)
 
         addAnchorLabels()
+
+        // ディスク移動に合わせて重心を定期的に更新する。
+        Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            self?.updateTiltFromDiscs()
+        }
     }
 
     /// セマンティック座標をボード上の位置にマッピングしてディスクを追加。
@@ -123,16 +130,10 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
 
         scene.rootNode.addChildNode(node)
 
-        // 傾き計算用には、意味座標の差が画面上でもはっきり出るようにスケーリングする。
-        // 例: NLEmbedding の差分は [-0.2, 0.2] 程度に収まるので、4倍して [-0.8, 0.8] まで広げる。
-        let scaleForTilt: CGFloat = 4.0
-        let scaledX = max(-1.0, min(1.0, position.x * scaleForTilt))
-
         // まだ空中にあるので、ボードには乗っていない扱い（isOnBoard = false）
         discs.append(
             SemanticDisc(
                 node: node,
-                semanticX: Double(scaledX),
                 isOnBoard: false
             )
         )
@@ -186,15 +187,24 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         }
 
         // 個数や重みには依存させず、「幾何学的な中心」だけを見る。
+        // 盤上ディスクの現在の物理位置から重心を取り直す。
         let sumX = activeDiscs.reduce(0.0) { partial, disc in
-            partial + disc.semanticX
+            let worldX = Double(disc.node.presentation.position.x)
+            // もともと [-1, 1] を *2.5 してボード上に置いているので、逆変換で正規化する。
+            let normalizedX = max(-1.0, min(1.0, worldX / 2.5))
+            // さらに傾き用に少し強調する（例: 2倍）。
+            let scaledForTilt = max(-1.0, min(1.0, normalizedX * 2.0))
+            return partial + scaledForTilt
         }
         let centerX = sumX / Double(activeDiscs.count)
         let center = CGPoint(x: centerX, y: 0)
 
         // デバッグ用ログ: ディスク配置と重心を出力。
         let positionsSummary = activeDiscs
-            .map { String(format: "%.2f", $0.semanticX) }
+            .map { d in
+                let worldX = d.node.presentation.position.x
+                return String(format: "%.2f", worldX)
+            }
             .joined(separator: ", ")
         let centerStr = String(format: "%.3f", centerX)
         print("[Tilt] activeDiscs=\(activeDiscs.count), xPositions=[\(positionsSummary)], centerX=\(centerStr)")
