@@ -367,8 +367,8 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         mat.transparency = 0.9
         torus.materials = [mat]
         let node = SCNNode(geometry: torus)
-        // 円を横にする: Z軸に垂直（XZ平面）＝ボード上面に水平。SCNTorusはデフォルトでXY平面→X軸で-90°でXZへ。
-        node.eulerAngles.x = -Float.pi / 2
+        // 円をボードと同じ向き（水平）にする。
+        node.eulerAngles.x = 0
         node.position = SCNVector3(0, 0.21, 0)  // ボード上面よりわずかに上
         node.name = "targetMarker"
         boardNode.addChildNode(node)
