@@ -1,5 +1,6 @@
 import Foundation
 import CoreGraphics
+import SwiftUI
 #if canImport(UIKit)
 import UIKit
 #elseif canImport(AppKit)
@@ -42,6 +43,15 @@ enum SemanticColorHelper {
         let yTint = lerpColor(coolTint, warmTint, t: yBlend)
 
         return blendColors(baseX, yTint, amount: 0.35)
+    }
+
+    /// SwiftUI用: セマンティック座標から Color を返す。
+    static func swiftUIColor(for x: CGFloat, y: CGFloat) -> Color {
+#if canImport(UIKit)
+        return Color(uiColor: color(for: x, y: y))
+#else
+        return Color(nsColor: color(for: x, y: y))
+#endif
     }
 
     private static func lerpColor(_ a: PlatformColor, _ b: PlatformColor, t: CGFloat) -> PlatformColor {

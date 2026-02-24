@@ -59,6 +59,10 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
     /// 重心を立て直すための最適落下位置マーカー（ボードの子ノード）
     private var targetMarkerNode: SCNNode?
 
+    /// ミニマップ用: 最適落下位置（セマンティック座標 [-1,1]）が更新されたときに呼ばれる。
+    /// ターゲット = 重心の反対側 = (-centerOfMass.x, -centerOfMass.y)
+    var onTargetPositionUpdated: ((CGPoint) -> Void)?
+
     private enum PhysicsCategory {
         static let floor: Int = 1 << 0
         static let board: Int = 1 << 1
@@ -359,6 +363,9 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
 
         updateBoardTilt(centerOfMass: smoothedCenterOfMass)
         updateTargetMarkerPosition(centerOfMass: smoothedCenterOfMass)
+        // ミニマップ用: ターゲット位置（重心の反対側）を通知
+        let targetPos = CGPoint(x: -smoothedCenterOfMass.x, y: -smoothedCenterOfMass.y)
+        onTargetPositionUpdated?(targetPos)
     }
 
     private func addTargetMarker() {

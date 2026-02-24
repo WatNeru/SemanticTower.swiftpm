@@ -75,7 +75,7 @@ private struct GameContentView: View {
                     .padding(.horizontal, 24)
                     .padding(.top, 48)
 
-                    CompassOverlayView()
+                    CompassOverlayView(controller: controller)
                         .padding(.top, 12)
                         .padding(.trailing, 24)
                         .frame(maxWidth: .infinity, alignment: .trailing)

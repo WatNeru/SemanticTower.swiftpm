@@ -9,6 +9,7 @@ enum InputMode: String, CaseIterable {
 }
 
 /// セマンティック・エンジンと 3D シーンをつなぐ ViewModel。
+@MainActor
 final class SemanticGameController: ObservableObject {
     @Published var wordInput: String = ""
     @Published var isDemoMode: Bool = true
@@ -20,6 +21,11 @@ final class SemanticGameController: ObservableObject {
     @Published var lastRecognitionResult: RecognitionResult?
     @Published var isRecognizing: Bool = false
     @Published var recognitionError: String?
+
+    /// ミニマップ用: 最適落下位置（セマンティック座標 [-1,1]）
+    @Published var targetPosition: CGPoint = .zero
+    /// ミニマップ用: 配置した単語とその時のセマンティック座標（置かれたときの位置）
+    @Published var placedWords: [(word: String, position: CGPoint)] = []
 
     let scene3D: GameScene3D
     private let manager: SemanticEmbeddingManager
@@ -50,6 +56,12 @@ final class SemanticGameController: ObservableObject {
 
         let provider = NLEmbeddingProvider()
         manager = SemanticEmbeddingManager(provider: provider, config: config)
+
+        scene3D.onTargetPositionUpdated = { [weak self] target in
+            Task { @MainActor in
+                self?.targetPosition = target
+            }
+        }
     }
 
     func dropCurrentWord() {
@@ -139,5 +151,7 @@ final class SemanticGameController: ObservableObject {
             mass: baseMass,
             diskShape: diskShape
         )
+        // ミニマップ用: 置かれたときの位置を記録（物理で動いても変わらない）
+        placedWords.append((word: lowercased, position: semanticPos))
     }
 }
