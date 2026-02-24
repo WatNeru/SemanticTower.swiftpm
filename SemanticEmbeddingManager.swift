@@ -60,7 +60,7 @@ struct SemanticEmbeddingManager {
         // 長さゼロ（完全バランス）の場合は、単に原点付近の単語を優先
         let useDirectionSimilarity = targetLength > 0.0001
 
-        let scored: [(word: String, score: Double)] = candidateWords.compactMap { word in
+        let scored: [(word: String, score: Double)] = candidateWords.compactMap { word -> (word: String, score: Double)? in
             guard let position = calculatePosition(for: word, anchors: nil) else {
                 return nil
             }
@@ -73,11 +73,11 @@ struct SemanticEmbeddingManager {
                 let candLength = hypot(candidateVector.dx, candidateVector.dy)
                 guard candLength > 0.0001 else { return nil }
                 let cosSim = dot / (targetLength * candLength)
-                return (word, cosSim)
+                return (word, Double(cosSim))
             } else {
                 // 原点からの距離が近いほどスコアが高いようにする
                 let distance = hypot(position.x, position.y)
-                let score = 1.0 - min(distance, 1.0)
+                let score = 1.0 - min(Double(distance), 1.0)
                 return (word, score)
             }
         }
