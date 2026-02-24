@@ -65,6 +65,8 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         floorBody.categoryBitMask = PhysicsCategory.floor
         floorBody.contactTestBitMask = PhysicsCategory.disc
         floorNode.physicsBody = floorBody
+        // 盤面との距離感を出すために、床を少し低めに配置する。
+        floorNode.position = SCNVector3(0, -1.0, 0)
         scene.rootNode.addChildNode(floorNode)
 
         // タワーの土台（傾ける板）
