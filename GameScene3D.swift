@@ -273,6 +273,11 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
                 return
             }
             if let index = discs.firstIndex(where: { $0.node === discNode }) {
+                // ボードに着地した瞬間の「ポン跳ね」を抑えるために速度を殺す。
+                if let body = discNode.physicsBody {
+                    body.velocity = SCNVector3Zero
+                    body.angularVelocity = SCNVector4Zero
+                }
                 discs[index].isOnBoard = true
                 updateTiltFromDiscs()
             }
