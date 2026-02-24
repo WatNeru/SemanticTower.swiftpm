@@ -6,6 +6,21 @@ import UIKit
 import AppKit
 #endif
 
+/// 認識精度に応じたディスク形状（仕様: Perfect=正円, Nice=歪み, Miss=欠け）
+enum DiskShape {
+    case perfect  // 安定した正円
+    case nice     // 一部歪んだ円盤
+    case miss     // 欠けた円盤（最も不安定）
+
+    static func from(scoreRank: ScoreRank) -> DiskShape {
+        switch scoreRank {
+        case .perfect: return .perfect
+        case .nice: return .nice
+        case .miss: return .miss
+        }
+    }
+}
+
 // MARK: - 物理パラメータ（ドロップ系スタッキングのベストプラクティス準拠）
 // 参考: Stack Overflow "What SpriteKit physics properties are needed for stacking and balancing",
 //       SceneKit friction/restitution, Kodeco SceneKit Physics Tutorial
@@ -117,14 +132,25 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
 
     /// セマンティック座標をボード上の位置にマッピングしてディスクを追加。
     /// position は [-1, 1] の範囲を想定。
-    func addDisc(atSemanticPosition position: CGPoint, color: UIColor, mass: Double) {
-        let radius: CGFloat = 0.3
+    /// diskShape: .perfect = 正円（安定）, .nice = 歪んだ円盤（不安定）, .miss = 欠けた円盤（最も不安定）
+    func addDisc(atSemanticPosition position: CGPoint, color: UIColor, mass: Double, diskShape: DiskShape = .perfect) {
+        let baseRadius: CGFloat = 0.3
         let height: CGFloat = 0.2
 
-        let geometry = SCNCylinder(radius: radius, height: height)
+        let geometry = SCNCylinder(radius: baseRadius, height: height)
         geometry.firstMaterial?.diffuse.contents = color
 
         let node = SCNNode(geometry: geometry)
+
+        // 仕様: Perfect=正円, Nice=歪んだ円盤, Miss=欠けた円盤で物理的に不安定に
+        switch diskShape {
+        case .perfect:
+            break  // そのまま正円
+        case .nice:
+            node.scale = SCNVector3(1.15, 1.0, 0.88)  // 楕円形に変形
+        case .miss:
+            node.scale = SCNVector3(1.25, 1.0, 0.75)  // より歪んで不安定
+        }
 
         // ボードは width=6, length=6。セマンティック座標を少し強調して左右に広げる。
         // [-1, 1] のセマンティックXを 4倍してから [-1, 1] に再クリップし、ボード半幅(≈3)の内側に収める。

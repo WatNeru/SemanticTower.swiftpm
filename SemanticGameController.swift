@@ -1,12 +1,25 @@
 import Foundation
 import SwiftUI
+import PencilKit
+
+/// 入力モード（仕様: キーボード or 手書き）
+enum InputMode: String, CaseIterable {
+    case keyboard = "Keyboard"
+    case handwriting = "Handwriting"
+}
 
 /// セマンティック・エンジンと 3D シーンをつなぐ ViewModel。
 final class SemanticGameController: ObservableObject {
     @Published var wordInput: String = ""
     @Published var isDemoMode: Bool = true
+    @Published var inputMode: InputMode = .handwriting
+    @Published var handwritingDrawing: PKDrawing = PKDrawing()
     @Published var lastScore: ScoreResult?
     @Published var lastScoredWord: String?
+    /// 手書き認識結果（赤表示用の uncertain インデックス含む）
+    @Published var lastRecognitionResult: RecognitionResult?
+    @Published var isRecognizing: Bool = false
+    @Published var recognitionError: String?
 
     let scene3D: GameScene3D
     private let manager: SemanticEmbeddingManager
@@ -40,23 +53,71 @@ final class SemanticGameController: ObservableObject {
     }
 
     func dropCurrentWord() {
-        // デモモード時は、ハードコードされた単語を順番に使用。
         if isDemoMode {
             guard !demoWords.isEmpty else { return }
             let word = demoWords[demoIndex % demoWords.count]
             demoIndex += 1
-            drop(word: word)
+            drop(word: word, diskShape: .perfect)
             return
         }
 
-        let trimmed = wordInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-
-        drop(word: trimmed)
-        wordInput = ""
+        switch inputMode {
+        case .keyboard:
+            let trimmed = wordInput.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            drop(word: trimmed, diskShape: .perfect)
+            wordInput = ""
+        case .handwriting:
+            // 手書き認識は View から Task { await recognizeAndDrop() } で呼ぶ（Swift 6 並行性）
+            break
+        }
     }
 
-    private func drop(word: String) {
+    /// 手書きを認識してドロップ（Vision + スコア → ディスク形状）
+    @MainActor
+    func recognizeAndDrop() async {
+        guard !handwritingDrawing.bounds.isEmpty else {
+            recognitionError = "Draw a word first"
+            return
+        }
+
+        isRecognizing = true
+        recognitionError = nil
+        lastRecognitionResult = nil
+
+        let size = CGSize(width: 400, height: 120)
+        let image = HandwritingCanvasView.image(from: handwritingDrawing, size: size)
+
+        let result = await HandwritingRecognizer.recognize(from: image)
+
+        isRecognizing = false
+
+        guard let rec = result, !rec.text.isEmpty else {
+            recognitionError = "Could not recognize. Try writing more clearly."
+            lastRecognitionResult = nil
+            return
+        }
+
+        lastRecognitionResult = rec
+
+        let score = ScoringEngine.evaluateFromRecognition(
+            confidence: rec.confidence,
+            uncertainCharacterCount: rec.uncertainCharacterIndices.count
+        )
+        lastScore = score
+        lastScoredWord = rec.text
+
+        drop(word: rec.text, diskShape: DiskShape.from(scoreRank: score.rank))
+        handwritingDrawing = PKDrawing()
+    }
+
+    func clearHandwriting() {
+        handwritingDrawing = PKDrawing()
+        recognitionError = nil
+        lastRecognitionResult = nil
+    }
+
+    private func drop(word: String, diskShape: DiskShape) {
         let lowercased = word.lowercased()
 
         guard let semanticPos = manager.calculatePosition(for: lowercased) else {
@@ -64,23 +125,18 @@ final class SemanticGameController: ObservableObject {
             return
         }
 
-        // 重さは文字数ベースでざっくり設定（長い単語ほど重い）。
         let baseMass = max(0.5, min(3.0, Double(lowercased.count) / 3.0))
 
         let xStr = String(format: "%.3f", semanticPos.x)
         let yStr = String(format: "%.3f", semanticPos.y)
         let massStr = String(format: "%.2f", baseMass)
-        print("[Drop] word=\"\(word)\", semantic=(x=\(xStr), y=\(yStr)), mass=\(massStr)")
+        print("[Drop] word=\"\(word)\", semantic=(x=\(xStr), y=\(yStr)), mass=\(massStr), shape=\(diskShape)")
 
-        // セマンティック座標をそのままボード上の局所座標にマッピング。
-        scene3D.addDisc(atSemanticPosition: semanticPos, color: .systemTeal, mass: baseMass)
-
-        // 手動入力時のみスコアリング（デモモードの自動落下はスコアなし）。
-        if !isDemoMode {
-            let result = ScoringEngine.evaluateAccuracy(input: word, target: word)
-            lastScore = result
-            lastScoredWord = word
-        }
+        scene3D.addDisc(
+            atSemanticPosition: semanticPos,
+            color: .systemTeal,
+            mass: baseMass,
+            diskShape: diskShape
+        )
     }
 }
-

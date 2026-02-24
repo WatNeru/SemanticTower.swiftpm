@@ -35,7 +35,7 @@ enum SemanticEngineDebugTests {
         )
         let manager = SemanticEmbeddingManager(
             provider: provider,
-            config: SemanticConfig(defaultAnchors: anchors, candidateWords: ["tree", "robot"])
+            config: SemanticConfig(defaultAnchors: anchors, candidateWords: ["tree", "robot"], positionScale: 1.0)
         )
 
         if let treePos = manager.calculatePosition(for: "tree") {
@@ -72,7 +72,7 @@ enum SemanticEngineDebugTests {
 
         let manager = SemanticEmbeddingManager(
             provider: provider,
-            config: SemanticConfig(defaultAnchors: anchors, candidateWords: ["left", "right"])
+            config: SemanticConfig(defaultAnchors: anchors, candidateWords: ["left", "right"], positionScale: 1.0)
         )
 
         // currentBalance が右方向なら、カウンターは左方向（"left"）が先頭に来るはず。

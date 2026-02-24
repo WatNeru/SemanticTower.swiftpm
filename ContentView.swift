@@ -15,12 +15,12 @@ struct ContentView: View {
                             .font(.title2.bold())
                             .foregroundStyle(.primary)
 
-                        Text(controller.isDemoMode ? "Demo mode: preset words" : "Manual mode: type any word")
+                        Text(controller.isDemoMode ? "Demo mode: preset words" : inputModeLabel)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
 
                         if let score = controller.lastScore, let word = controller.lastScoredWord {
-                            Text("\(rankLabelText(from: score.rank)): \"\(word)\" (accuracy: \(Int(score.accuracy * 100))%)")
+                            Text("\(rankLabelText(from: score.rank)): \"\(word)\" (\(Int(score.accuracy * 100))%)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -35,51 +35,182 @@ struct ContentView: View {
             // 下部: 入力・操作（一体化ガラスパネル）
             VStack {
                 Spacer()
-                HStack(spacing: 12) {
-                    TextField("type a word…", text: $controller.wordInput)
-                        .textInputAutocapitalization(.never)
-                        .disableAutocorrection(true)
-                        .foregroundStyle(.primary)
-                        .disabled(controller.isDemoMode)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-                        .frame(maxWidth: .infinity)
-
-                    Button {
-                        controller.dropCurrentWord()
-                    } label: {
-                        Text("Drop")
-                            .fontWeight(.semibold)
-                    }
-                    .buttonStyle(.glassProminent)
-
-                    Button {
-                        controller.isDemoMode.toggle()
-                    } label: {
-                        Text(controller.isDemoMode ? "Demo" : "Manual")
-                            .font(.footnote.weight(.semibold))
-                    }
-                    .buttonStyle(.glass)
-                }
-                .padding(16)
-                .glassEffect(.regular, cornerRadius: 20)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 40)
+                inputArea
             }
         }
         .onAppear {
             SemanticDemoRunner.run()
         }
+        .sensoryFeedbackForScore(controller.lastScore)
+    }
+
+    private var inputModeLabel: String {
+        switch controller.inputMode {
+        case .keyboard: return "Manual: type any word"
+        case .handwriting: return "Manual: draw with Pencil or finger"
+        }
+    }
+
+    @ViewBuilder
+    private var inputArea: some View {
+        VStack(spacing: 12) {
+            // 入力モード切り替え
+            if !controller.isDemoMode {
+                Picker("Input", selection: $controller.inputMode) {
+                    ForEach(InputMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
+            switch controller.inputMode {
+            case .keyboard:
+                keyboardInputRow
+            case .handwriting:
+                handwritingInputArea
+            }
+        }
+        .padding(16)
+        .glassEffect(.regular, cornerRadius: 20)
+        .padding(.horizontal, 24)
+        .padding(.bottom, 40)
+    }
+
+    private var keyboardInputRow: some View {
+        HStack(spacing: 12) {
+            TextField("type a word…", text: $controller.wordInput)
+                .textInputAutocapitalization(.never)
+                .disableAutocorrection(true)
+                .foregroundStyle(.primary)
+                .disabled(controller.isDemoMode)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                .frame(maxWidth: .infinity)
+
+            actionButtons
+        }
+    }
+
+    private var handwritingInputArea: some View {
+        VStack(spacing: 10) {
+            // 手書きキャンバス（仕様: iPad 画面下部に Apple Pencil / 指で記述）
+            HandwritingCanvasView(
+                drawing: $controller.handwritingDrawing,
+                canvasSize: CGSize(width: 340, height: 80)
+            )
+            .frame(height: 80)
+            .background(Color.white.opacity(0.95))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .disabled(controller.isDemoMode)
+
+            if let rec = controller.lastRecognitionResult, !rec.text.isEmpty {
+                // 認識結果を赤ハイライト付きで表示（仕様: 認識されなかった文字を赤く表示）
+                RecognizedTextFeedbackView(result: rec)
+                    .font(.subheadline.monospaced())
+            }
+
+            if let err = controller.recognitionError {
+                Text(err)
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+            }
+
+            HStack(spacing: 12) {
+                Button {
+                    controller.clearHandwriting()
+                } label: {
+                    Image(systemName: "eraser")
+                        .font(.body.weight(.medium))
+                }
+                .buttonStyle(.glass)
+                .disabled(controller.isDemoMode)
+
+                actionButtons
+            }
+        }
+    }
+
+    private var actionButtons: some View {
+        Group {
+            Button {
+                if controller.isDemoMode {
+                    controller.dropCurrentWord()
+                } else if controller.inputMode == .handwriting {
+                    Task { @MainActor in await controller.recognizeAndDrop() }
+                } else {
+                    controller.dropCurrentWord()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    if controller.isRecognizing {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                            .tint(.primary)
+                    } else {
+                        Text("Drop")
+                            .fontWeight(.semibold)
+                    }
+                }
+            }
+            .buttonStyle(.glassProminent)
+            .disabled(!controller.isDemoMode && (controller.isRecognizing || (controller.inputMode == .handwriting && controller.handwritingDrawing.bounds.isEmpty)))
+
+            Button {
+                controller.isDemoMode.toggle()
+            } label: {
+                Text(controller.isDemoMode ? "Demo" : "Manual")
+                    .font(.footnote.weight(.semibold))
+            }
+            .buttonStyle(.glass)
+        }
     }
 
     private func rankLabelText(from rankAny: Any) -> String {
-        // Fallback: derive a user-friendly label from whatever `rank` is.
         let raw = String(describing: rankAny).lowercased()
         if raw.contains("perfect") { return "Perfect" }
         if raw.contains("nice") { return "Nice" }
         if raw.contains("miss") { return "Try again" }
         return raw.capitalized
+    }
+}
+
+// MARK: - 認識結果のフィードバック表示（赤文字で不明瞭な文字を表示）
+
+struct RecognizedTextFeedbackView: View {
+    let result: RecognitionResult
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(result.text.enumerated()), id: \.offset) { index, char in
+                Text(String(char))
+                    .foregroundStyle(result.uncertainCharacterIndices.contains(index) ? .red : .primary)
+                    .fontWeight(result.uncertainCharacterIndices.contains(index) ? .bold : .regular)
+            }
+        }
+    }
+}
+
+// MARK: - スコアに応じた sensoryFeedback（iOS 17+）/ HapticFeedback（iOS 16）
+
+private extension View {
+    @ViewBuilder
+    func sensoryFeedbackForScore(_ score: ScoreResult?) -> some View {
+        if #available(iOS 17.0, *) {
+            self.sensoryFeedback(trigger: score) { old, new in
+                guard let s = new else { return nil }
+                switch s.rank {
+                case .perfect: return .success
+                case .nice: return .warning
+                case .miss: return .error
+                }
+            }
+        } else {
+            self.onChange(of: score?.rank) { newRank in
+                if let r = newRank { HapticFeedback.play(for: r) }
+            }
+        }
     }
 }
 
@@ -99,7 +230,6 @@ enum SemanticDemoRunner {
             objectWord: "object"
         )
 
-        // カテゴリごとに代表的な単語を用意して、広い意味空間をざっと眺める。
         let animals = ["dog", "cat", "lion", "eagle", "whale"]
         let natureWords = ["tree", "river", "mountain", "forest", "ocean"]
         let machines = ["car", "train", "airplane", "computer", "robot"]
@@ -109,7 +239,6 @@ enum SemanticDemoRunner {
 
         let demoWords = animals + natureWords + machines + objects + emotions + abstract
 
-        // ゲーム用に差を少し強調したいので positionScale を 4.0 に設定。
         let config = SemanticConfig(
             defaultAnchors: anchors,
             candidateWords: demoWords,
@@ -147,7 +276,3 @@ enum SemanticDemoRunner {
         print(counter)
     }
 }
-
-// 将来、セマンティック重心に応じて GameScene3D.updateBoardTilt(centerOfMass:) を
-// 呼び出すための橋渡し用として、必要に応じて ViewModel をここに追加していく予定。
-
