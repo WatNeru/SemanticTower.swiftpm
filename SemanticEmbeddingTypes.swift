@@ -26,9 +26,13 @@ struct AnchorSet: Equatable {
 /// セマンティック・エンジンの設定値。
 /// - デフォルトアンカー
 /// - 候補単語リスト（カウンター語探索などに利用）
+/// - 物理空間などへ投影する際のスケーリング係数
 struct SemanticConfig {
     let defaultAnchors: AnchorSet
     let candidateWords: [String]
+    /// 画面や物理空間にマッピングする際のスケール係数。
+    /// `1.0` はセマンティック座標そのまま、`3.0` などにすると差が強調される。
+    let positionScale: Double
 
     init(
         defaultAnchors: AnchorSet = AnchorSet(
@@ -37,10 +41,12 @@ struct SemanticConfig {
             livingWord: "human",
             objectWord: "object"
         ),
-        candidateWords: [String] = []
+        candidateWords: [String] = [],
+        positionScale: Double = 1.0
     ) {
         self.defaultAnchors = defaultAnchors
         self.candidateWords = candidateWords
+        self.positionScale = positionScale
     }
 }
 

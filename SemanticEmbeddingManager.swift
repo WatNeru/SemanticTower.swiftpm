@@ -39,6 +39,23 @@ struct SemanticEmbeddingManager {
         return CGPoint(x: xNorm, y: yNorm)
     }
 
+    /// セマンティック座標を、ゲーム用などのスケーリング後座標として取得する。
+    /// - Parameters:
+    ///   - word: 対象単語
+    ///   - anchors: 使用するアンカーセット（省略時はデフォルト）
+    ///   - scale: 追加のスケール係数。未指定なら `SemanticConfig.positionScale` を使用。
+    func scaledPosition(
+        for word: String,
+        anchors: AnchorSet? = nil,
+        scale: Double? = nil
+    ) -> CGPoint? {
+        guard let base = calculatePosition(for: word, anchors: anchors) else {
+            return nil
+        }
+        let factor = scale ?? config.positionScale
+        return CGPoint(x: base.x * factor, y: base.y * factor)
+    }
+
     /// 現在の重心を打ち消す方向に近い単語を、候補リストの中から探索する。
     /// - Parameters:
     ///   - currentBalance: 現在の重心ベクトル
