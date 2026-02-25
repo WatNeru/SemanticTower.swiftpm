@@ -115,18 +115,17 @@ private struct GameContentView: View {
             }
         }
         .sensoryFeedbackForScore(controller.lastScore)
-        .environment(\.sizeCategory, settings.largeText ? .accessibilityMedium : .large)
-        .contrast(settings.highContrast ? 0.3 : 0)
     }
 
     // MARK: - Gradient overlay
 
     private var overlayGradient: some View {
-        VStack(spacing: 0) {
+        let boost: Double = settings.highContrast ? 0.25 : 0
+        return VStack(spacing: 0) {
             LinearGradient(
                 colors: [
-                    STTheme.Colors.cosmicDeep.opacity(0.65),
-                    STTheme.Colors.cosmicDeep.opacity(0.25),
+                    STTheme.Colors.cosmicDeep.opacity(0.65 + boost),
+                    STTheme.Colors.cosmicDeep.opacity(0.25 + boost),
                     Color.clear
                 ],
                 startPoint: .top,
@@ -139,8 +138,8 @@ private struct GameContentView: View {
             LinearGradient(
                 colors: [
                     Color.clear,
-                    STTheme.Colors.cosmicDeep.opacity(0.35),
-                    STTheme.Colors.cosmicDeep.opacity(0.75)
+                    STTheme.Colors.cosmicDeep.opacity(0.35 + boost),
+                    STTheme.Colors.cosmicDeep.opacity(0.75 + boost)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
