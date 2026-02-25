@@ -1,11 +1,11 @@
 import SwiftUI
 import PencilKit
 
-/// PencilKit ベースの手書き入力キャンバス。
-/// Apple Pencil と指の両方に対応。白背景・黒線で Vision 認識精度を最大化。
+/// PencilKit 手書き入力キャンバス。
+/// 角丸・背景は UIKit 側で設定し、SwiftUI の clipShape を使わない。
+/// これにより PKCanvasView の内部描画レイヤが確実に表示される。
 struct HandwritingCanvasView: UIViewRepresentable {
     @Binding var drawing: PKDrawing
-    var canvasSize: CGSize = CGSize(width: 400, height: 120)
 
     func makeUIView(context: Context) -> PKCanvasView {
         let canvas = PKCanvasView()
@@ -13,20 +13,22 @@ struct HandwritingCanvasView: UIViewRepresentable {
         canvas.drawingPolicy = .anyInput
         canvas.allowsFingerDrawing = true
         canvas.backgroundColor = .white
-        canvas.tool = PKInkingTool(.pen, color: .black, width: 3)
-        canvas.isOpaque = false
+        canvas.isOpaque = true
+        canvas.tool = PKInkingTool(.pen, color: .black, width: 4)
         canvas.isScrollEnabled = false
         canvas.showsVerticalScrollIndicator = false
         canvas.showsHorizontalScrollIndicator = false
         canvas.isMultipleTouchEnabled = true
         canvas.isUserInteractionEnabled = true
+        canvas.layer.cornerRadius = 14
+        canvas.layer.masksToBounds = true
+        canvas.overrideUserInterfaceStyle = .light
         return canvas
     }
 
     func updateUIView(_ uiView: PKCanvasView, context: Context) {
-        // Coordinator が更新中の場合は再入を防ぐ
         guard !context.coordinator.isUpdating else { return }
-        if uiView.drawing != drawing {
+        if uiView.drawing.dataRepresentation() != drawing.dataRepresentation() {
             uiView.drawing = drawing
         }
     }
@@ -44,7 +46,6 @@ struct HandwritingCanvasView: UIViewRepresentable {
         }
 
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
-            // ビュー更新サイクル外で @Published を変更する
             isUpdating = true
             DispatchQueue.main.async { [weak self] in
                 self?.drawing = canvasView.drawing
@@ -60,7 +61,6 @@ extension HandwritingCanvasView {
     static func image(from drawing: PKDrawing, size: CGSize, scale: CGFloat = 2.0) -> UIImage {
         let rect = CGRect(origin: .zero, size: size)
         let img = drawing.image(from: rect, scale: scale)
-
         let renderer = UIGraphicsImageRenderer(size: size)
         return renderer.image { ctx in
             UIColor.white.setFill()
@@ -70,10 +70,8 @@ extension HandwritingCanvasView {
     }
 }
 
-// MARK: - Polished handwriting input panel
+// MARK: - Handwriting Input Panel
 
-/// 手書き入力エリア全体を構成するコンポーネント。
-/// キャンバス + ガイド + アクションボタンをまとめて提供。
 struct HandwritingInputPanel: View {
     @ObservedObject var controller: SemanticGameController
     let onDrop: () -> Void
@@ -89,41 +87,30 @@ struct HandwritingInputPanel: View {
     // MARK: - Canvas
 
     private var canvasArea: some View {
-        ZStack(alignment: .center) {
-            HandwritingCanvasView(
-                drawing: $controller.handwritingDrawing,
-                canvasSize: CGSize(width: 340, height: 120)
-            )
+        HandwritingCanvasView(drawing: $controller.handwritingDrawing)
             .disabled(controller.isDemoMode)
-
-            if controller.handwritingDrawing.bounds.isEmpty && !controller.isDemoMode {
-                Text("Write a word here")
-                    .font(.system(size: 18, weight: .medium, design: .rounded))
-                    .foregroundColor(.gray.opacity(0.4))
+            .frame(height: 120)
+            .overlay(alignment: .center) {
+                if controller.handwritingDrawing.bounds.isEmpty && !controller.isDemoMode {
+                    Text("Write a word here")
+                        .font(.system(size: 18, weight: .medium, design: .rounded))
+                        .foregroundColor(.gray.opacity(0.35))
+                        .allowsHitTesting(false)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(Color.gray.opacity(0.12))
+                    .frame(height: 1)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 34)
                     .allowsHitTesting(false)
             }
-
-            baselineGuide
-        }
-        .frame(height: 120)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(canvasBorderColor, lineWidth: 1.5)
-        )
-    }
-
-    private var baselineGuide: some View {
-        GeometryReader { geo in
-            Path { path in
-                let baseY = geo.size.height * 0.72
-                path.move(to: CGPoint(x: 16, y: baseY))
-                path.addLine(to: CGPoint(x: geo.size.width - 16, y: baseY))
-            }
-            .stroke(Color.gray.opacity(0.15), style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
-        }
-        .allowsHitTesting(false)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(canvasBorderColor, lineWidth: 1.5)
+                    .allowsHitTesting(false)
+            )
     }
 
     private var canvasBorderColor: Color {
