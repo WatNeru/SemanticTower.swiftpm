@@ -12,6 +12,15 @@ final class SoundEngine: @unchecked Sendable {
     private let sampleRate: Double = 44100
     private var isSetUp = false
 
+    /// GameSettings から読み取る。false なら全音を無効化。
+    var isEnabled: Bool {
+        UserDefaults.standard.object(forKey: "soundEnabled") as? Bool ?? true
+    }
+
+    var volume: Float {
+        Float(UserDefaults.standard.object(forKey: "soundVolume") as? Double ?? 0.4)
+    }
+
     private init() {
         setUp()
     }
@@ -110,7 +119,8 @@ final class SoundEngine: @unchecked Sendable {
         duration: Double,
         envelope: Envelope
     ) {
-        guard isSetUp else { return }
+        guard isSetUp, isEnabled else { return }
+        engine.mainMixerNode.outputVolume = volume
         let frameCount = AVAudioFrameCount(sampleRate * duration)
         guard let buffer = AVAudioPCMBuffer(
             pcmFormat: playerNode.outputFormat(forBus: 0),
@@ -145,7 +155,8 @@ final class SoundEngine: @unchecked Sendable {
     }
 
     private func playChime(frequencies: [Double], duration: Double) {
-        guard isSetUp else { return }
+        guard isSetUp, isEnabled else { return }
+        engine.mainMixerNode.outputVolume = volume
         let frameCount = AVAudioFrameCount(sampleRate * duration)
         guard let buffer = AVAudioPCMBuffer(
             pcmFormat: playerNode.outputFormat(forBus: 0),

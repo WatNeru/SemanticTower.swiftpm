@@ -84,9 +84,11 @@ private struct LoadingView: View {
 
 private struct GameContentView: View {
     @ObservedObject var controller: SemanticGameController
+    @StateObject private var settings = GameSettings()
     @State private var feedbackID = UUID()
     @State private var showDropFeedback = false
     @State private var lastDroppedWord: String = ""
+    @State private var showSettings = false
 
     var body: some View {
         ZStack {
@@ -153,6 +155,17 @@ private struct GameContentView: View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(STTheme.Colors.textTertiary)
+                    }
+                    .sheet(isPresented: $showSettings) {
+                        SettingsView(settings: settings)
+                    }
+
                     Image(systemName: "sparkles")
                         .font(.system(size: 14))
                         .foregroundColor(STTheme.Colors.accentCyan)
