@@ -356,6 +356,12 @@ private struct GameContentView: View {
                     .id("drop-\(lastDroppedWord)-\(feedbackID)")
                     .transition(.opacity)
             }
+
+            if let fallen = controller.lastFallenWord {
+                FallNotificationView(word: fallen, fallCount: controller.fallCount)
+                    .id("fall-\(fallen)-\(controller.fallCount)")
+                    .transition(.opacity)
+            }
         }
     }
 

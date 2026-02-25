@@ -18,6 +18,8 @@ final class SemanticGameController: ObservableObject {
     @Published var isRecognizing: Bool = false
     @Published var recognitionError: String?
     @Published var perfectStreak: Int = 0
+    @Published var lastFallenWord: String?
+    @Published var fallCount: Int = 0
 
     // 手書きキャンバス用（UIImage ベース、PencilKit 不要）
     @Published var handwritingImage: UIImage?
@@ -51,6 +53,12 @@ final class SemanticGameController: ObservableObject {
         scene3D.onTargetPositionUpdated = { [weak self] target in
             Task { @MainActor in
                 self?.targetPosition = target
+            }
+        }
+
+        scene3D.onDiscFell = { [weak self] word in
+            Task { @MainActor in
+                self?.handleDiscFell(word: word)
             }
         }
     }
@@ -140,6 +148,19 @@ final class SemanticGameController: ObservableObject {
             perfectStreak += 1
         } else {
             perfectStreak = 0
+        }
+    }
+
+    private func handleDiscFell(word: String) {
+        placedWords.removeAll { $0.word == word }
+        lastFallenWord = word
+        fallCount += 1
+        perfectStreak = 0
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+            if self?.lastFallenWord == word {
+                self?.lastFallenWord = nil
+            }
         }
     }
 }

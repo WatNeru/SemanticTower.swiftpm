@@ -76,6 +76,16 @@ final class SoundEngine: @unchecked Sendable {
         )
     }
 
+    /// ディスクがボードから落ちたとき（低い下降音 + 衝撃）
+    func playFall() {
+        playTone(
+            baseFreq: 300,
+            endFreq: 80,
+            duration: 0.5,
+            envelope: .descending
+        )
+    }
+
     /// ボタンタップなどの軽い音
     func playTap() {
         playTone(

@@ -93,6 +93,7 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
 
     private struct SemanticDisc {
         let node: SCNNode
+        let word: String
         var isOnBoard: Bool
     }
     private var discs: [SemanticDisc] = []
@@ -100,8 +101,10 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
     private var targetMarkerNode: SCNNode?
 
     /// ミニマップ用: 最適落下位置（セマンティック座標 [-1,1]）が更新されたときに呼ばれる。
-    /// ターゲット = 重心の反対側 = (-centerOfMass.x, -centerOfMass.y)
     var onTargetPositionUpdated: ((CGPoint) -> Void)?
+
+    /// ディスクが床に落下したときに呼ばれる（単語名を通知）
+    var onDiscFell: ((String) -> Void)?
 
     private enum PhysicsCategory {
         static let floor: Int = 1 << 0
@@ -287,12 +290,8 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
 
         scene.rootNode.addChildNode(node)
 
-        // まだ空中にあるので、ボードには乗っていない扱い（isOnBoard = false）
         discs.append(
-            SemanticDisc(
-                node: node,
-                isOnBoard: false
-            )
+            SemanticDisc(node: node, word: word, isOnBoard: false)
         )
     }
 
@@ -524,7 +523,10 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
             (categoryA == PhysicsCategory.floor && categoryB == PhysicsCategory.disc) {
             let discNode = categoryA == PhysicsCategory.disc ? nodeA : nodeB
             if let index = discs.firstIndex(where: { $0.node === discNode }) {
+                let fallenWord = discs[index].word
                 discs.remove(at: index)
+                SoundEngine.shared.playFall()
+                onDiscFell?(fallenWord)
             }
             discNode.removeFromParentNode()
             return
