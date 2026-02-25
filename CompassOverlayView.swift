@@ -27,6 +27,7 @@ private struct MapCoordinateHelper {
 
 struct CompassOverlayView: View {
     @ObservedObject var controller: SemanticGameController
+    @ObservedObject var settings: GameSettings
     @State private var isExpanded = false
 
     var body: some View {
@@ -37,7 +38,7 @@ struct CompassOverlayView: View {
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $isExpanded) {
-            ExpandedMapView(controller: controller)
+            ExpandedMapView(controller: controller, settings: settings)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
@@ -49,13 +50,13 @@ struct CompassOverlayView: View {
         ZStack(alignment: .center) {
             crosshairLines
 
-            axisLabel("L", color: STTheme.Colors.accentGold)
+            axisLabel(initial(settings.anchorLiving), color: STTheme.Colors.accentGold)
                 .offset(y: -26)
-            axisLabel("O", color: STTheme.Colors.accentCyan)
+            axisLabel(initial(settings.anchorObject), color: STTheme.Colors.accentCyan)
                 .offset(y: 26)
-            axisLabel("N", color: STTheme.Colors.perfectGreen)
+            axisLabel(initial(settings.anchorNature), color: STTheme.Colors.perfectBlue)
                 .offset(x: 42)
-            axisLabel("M", color: STTheme.Colors.nebulaPurple)
+            axisLabel(initial(settings.anchorMachine), color: STTheme.Colors.nebulaPurple)
                 .offset(x: -42)
 
             if !controller.placedWords.isEmpty {
@@ -99,6 +100,10 @@ struct CompassOverlayView: View {
             .foregroundColor(color)
     }
 
+    private func initial(_ word: String) -> String {
+        String(word.prefix(1)).uppercased()
+    }
+
     private var placedWordDots: some View {
         let mapCenterX: CGFloat = 55
         let mapCenterY: CGFloat = 35
@@ -138,6 +143,7 @@ struct CompassOverlayView: View {
 
 struct ExpandedMapView: View {
     @ObservedObject var controller: SemanticGameController
+    @ObservedObject var settings: GameSettings
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -153,13 +159,13 @@ struct ExpandedMapView: View {
                     gridLines(width: geoWidth, height: geoHeight)
 
                     Group {
-                        expandedLabel("Living", color: STTheme.Colors.accentGold)
+                        expandedLabel(settings.anchorLiving.capitalized, color: STTheme.Colors.accentGold)
                             .position(x: geoWidth / 2, y: 16)
-                        expandedLabel("Object", color: STTheme.Colors.accentCyan)
+                        expandedLabel(settings.anchorObject.capitalized, color: STTheme.Colors.accentCyan)
                             .position(x: geoWidth / 2, y: geoHeight - 16)
-                        expandedLabel("Nature", color: STTheme.Colors.perfectGreen)
+                        expandedLabel(settings.anchorNature.capitalized, color: STTheme.Colors.perfectBlue)
                             .position(x: geoWidth - 28, y: geoHeight / 2)
-                        expandedLabel("Machine", color: STTheme.Colors.nebulaPurple)
+                        expandedLabel(settings.anchorMachine.capitalized, color: STTheme.Colors.nebulaPurple)
                             .position(x: 32, y: geoHeight / 2)
                     }
 

@@ -343,7 +343,25 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
 
     // マテリアルは DiscMaterialHelper.applyToShape で直接適用
 
-    private func addAnchorLabels() {
+    /// 設定変更時にラベルを更新
+    func updateAnchorLabels(settings: GameSettings) {
+        scene.rootNode.childNodes
+            .filter { $0.name?.hasPrefix("anchorLabel_") == true }
+            .forEach { $0.removeFromParentNode() }
+        addAnchorLabels(
+            natureName: settings.anchorNature.capitalized,
+            machineName: settings.anchorMachine.capitalized,
+            livingName: settings.anchorLiving.capitalized,
+            objectName: settings.anchorObject.capitalized
+        )
+    }
+
+    private func addAnchorLabels(
+        natureName: String = "Nature",
+        machineName: String = "Machine",
+        livingName: String = "Living",
+        objectName: String = "Object"
+    ) {
         let billboard = SCNBillboardConstraint()
         billboard.freeAxes = .all
 
@@ -382,20 +400,24 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
         let objectColor = NSColor(red: 0.25, green: 0.65, blue: 0.88, alpha: 1)
 #endif
 
-        let natureNode = makeTextNode("Nature", color: natureColor)
+        let natureNode = makeTextNode(natureName, color: natureColor)
         natureNode.position = SCNVector3(3.4, 1.8, 0)
+        natureNode.name = "anchorLabel_nature"
         scene.rootNode.addChildNode(natureNode)
 
-        let machineNode = makeTextNode("Machine", color: machineColor)
+        let machineNode = makeTextNode(machineName, color: machineColor)
         machineNode.position = SCNVector3(-3.4, 1.8, 0)
+        machineNode.name = "anchorLabel_machine"
         scene.rootNode.addChildNode(machineNode)
 
-        let livingNode = makeTextNode("Living", color: livingColor)
+        let livingNode = makeTextNode(livingName, color: livingColor)
         livingNode.position = SCNVector3(0, 1.8, 3.4)
+        livingNode.name = "anchorLabel_living"
         scene.rootNode.addChildNode(livingNode)
 
-        let objectNode = makeTextNode("Object", color: objectColor)
+        let objectNode = makeTextNode(objectName, color: objectColor)
         objectNode.position = SCNVector3(0, 1.8, -3.4)
+        objectNode.name = "anchorLabel_object"
         scene.rootNode.addChildNode(objectNode)
     }
 

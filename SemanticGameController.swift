@@ -34,7 +34,8 @@ final class SemanticGameController: ObservableObject {
     @Published var placedWords: [(word: String, position: CGPoint)] = []
 
     let scene3D: GameScene3D
-    private let manager: SemanticEmbeddingManager
+    let settings: GameSettings
+    private var manager: SemanticEmbeddingManager
     let demoWords: [String] = [
         "dog", "cat", "lion",
         "tree", "river", "forest",
@@ -49,22 +50,19 @@ final class SemanticGameController: ObservableObject {
         return demoWords[demoIndex % demoWords.count]
     }
 
-    init() {
+    init(settings: GameSettings = GameSettings()) {
+        self.settings = settings
         scene3D = GameScene3D()
 
-        let anchors = AnchorSet(
-            natureWord: "nature",
-            mechanicWord: "machine",
-            livingWord: "animal",
-            objectWord: "object"
-        )
-        let config = SemanticConfig(
-            defaultAnchors: anchors,
-            candidateWords: [],
-            positionScale: 4.0
-        )
         let provider = NLEmbeddingProvider()
-        manager = SemanticEmbeddingManager(provider: provider, config: config)
+        manager = SemanticEmbeddingManager(
+            provider: provider,
+            config: SemanticConfig(
+                defaultAnchors: settings.currentAnchors,
+                candidateWords: [],
+                positionScale: 4.0
+            )
+        )
 
         scene3D.onTargetPositionUpdated = { [weak self] target in
             Task { @MainActor in self?.targetPosition = target }
@@ -72,6 +70,22 @@ final class SemanticGameController: ObservableObject {
         scene3D.onDiscFell = { [weak self] word in
             Task { @MainActor in self?.handleDiscFell(word: word) }
         }
+
+        scene3D.updateAnchorLabels(settings: settings)
+    }
+
+    /// 設定変更時にエンジンとラベルを再構築
+    func applySettings() {
+        let provider = NLEmbeddingProvider()
+        manager = SemanticEmbeddingManager(
+            provider: provider,
+            config: SemanticConfig(
+                defaultAnchors: settings.currentAnchors,
+                candidateWords: [],
+                positionScale: 4.0
+            )
+        )
+        scene3D.updateAnchorLabels(settings: settings)
     }
 
     // MARK: - Demo mode drop

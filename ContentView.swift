@@ -1,12 +1,13 @@
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var settings = GameSettings()
     @State private var controller: SemanticGameController?
 
     var body: some View {
         Group {
             if let controller = controller {
-                GameContentView(controller: controller)
+                GameContentView(controller: controller, settings: settings)
             } else {
                 LoadingView()
             }
@@ -14,7 +15,7 @@ struct ContentView: View {
         .task {
             guard controller == nil else { return }
             try? await Task.sleep(nanoseconds: 50_000_000)
-            let newController = SemanticGameController()
+            let newController = SemanticGameController(settings: settings)
             controller = newController
         }
         .onAppear {
@@ -84,7 +85,7 @@ private struct LoadingView: View {
 
 private struct GameContentView: View {
     @ObservedObject var controller: SemanticGameController
-    @StateObject private var settings = GameSettings()
+    @ObservedObject var settings: GameSettings
     @State private var feedbackID = UUID()
     @State private var showDropFeedback = false
     @State private var lastDroppedWord: String = ""
@@ -163,7 +164,9 @@ private struct GameContentView: View {
                             .font(.system(size: 14))
                             .foregroundColor(STTheme.Colors.textTertiary)
                     }
-                    .sheet(isPresented: $showSettings) {
+                    .sheet(isPresented: $showSettings, onDismiss: {
+                        controller.applySettings()
+                    }) {
                         SettingsView(settings: settings)
                     }
 
@@ -180,12 +183,12 @@ private struct GameContentView: View {
                         .foregroundColor(STTheme.Colors.accentCyan)
 
                     Text("Semantic Tower")
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                        .font(.system(size: settings.largeText ? 26 : 22, weight: .bold, design: .rounded))
                         .foregroundColor(STTheme.Colors.textPrimary)
                 }
 
                 Text(modeLabel)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .font(.system(size: settings.largeText ? 15 : 12, weight: .medium, design: .rounded))
                     .foregroundColor(STTheme.Colors.textTertiary)
 
                 if let score = controller.lastScore, let word = controller.lastScoredWord {
@@ -240,7 +243,7 @@ private struct GameContentView: View {
     private var compassRow: some View {
         HStack {
             Spacer()
-            CompassOverlayView(controller: controller)
+            CompassOverlayView(controller: controller, settings: settings)
         }
         .padding(.horizontal, 20)
     }
