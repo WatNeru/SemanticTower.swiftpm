@@ -24,6 +24,8 @@ struct HandwritingCanvasView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: PKCanvasView, context: Context) {
+        // Coordinator が更新中の場合は再入を防ぐ
+        guard !context.coordinator.isUpdating else { return }
         if uiView.drawing != drawing {
             uiView.drawing = drawing
         }
@@ -35,13 +37,19 @@ struct HandwritingCanvasView: UIViewRepresentable {
 
     final class Coordinator: NSObject, PKCanvasViewDelegate {
         @Binding var drawing: PKDrawing
+        var isUpdating = false
 
         init(drawing: Binding<PKDrawing>) {
             _drawing = drawing
         }
 
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
-            drawing = canvasView.drawing
+            // ビュー更新サイクル外で @Published を変更する
+            isUpdating = true
+            DispatchQueue.main.async { [weak self] in
+                self?.drawing = canvasView.drawing
+                self?.isUpdating = false
+            }
         }
     }
 }
