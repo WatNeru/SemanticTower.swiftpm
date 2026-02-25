@@ -487,49 +487,63 @@ final class GameScene3D: NSObject, @preconcurrency SCNPhysicsContactDelegate {
     }
 
     // MARK: - SCNPhysicsContactDelegate
+    // SceneKit はレンダリングスレッドからデリゲートを呼ぶため、
+    // nonisolated にして状態変更は DispatchQueue.main.async で安全に実行。
 
-    @MainActor func physicsWorld(_ world: SCNPhysicsWorld, didBegin contact: SCNPhysicsContact) {
-        guard let nodeA = contact.nodeA as SCNNode?, let nodeB = contact.nodeB as SCNNode? else { return }
+    nonisolated func physicsWorld(
+        _ world: SCNPhysicsWorld,
+        didBegin contact: SCNPhysicsContact
+    ) {
+        let nodeA = contact.nodeA
+        let nodeB = contact.nodeB
+        let contactPoint = contact.contactPoint
 
         let categoryA = nodeA.physicsBody?.categoryBitMask ?? 0
         let categoryB = nodeB.physicsBody?.categoryBitMask ?? 0
 
-        // ディスクとボードの接触 → 盤上に乗ったとみなす
         if (categoryA == PhysicsCategory.disc && categoryB == PhysicsCategory.board) ||
             (categoryA == PhysicsCategory.board && categoryB == PhysicsCategory.disc) {
             let discNode = categoryA == PhysicsCategory.disc ? nodeA : nodeB
-            // ボードローカル座標系で接触点を見て、傾きに応じた「天面近傍」だけを盤上とみなす。
-            let localPoint = boardNode.presentation.convertPosition(contact.contactPoint, from: nil)
-            let (_, maxBounds) = boardNode.boundingBox
-            let topY = maxBounds.y
-            let epsilon: Float = 0.02
-            // 側面や下面との接触は無視する。
-            if localPoint.y < topY - epsilon {
-                return
-            }
-            if let index = discs.firstIndex(where: { $0.node === discNode }) {
-                if let body = discNode.physicsBody {
-                    body.velocity = SCNVector3Zero
-                    body.angularVelocity = SCNVector4Zero
-                }
-                if !discs[index].isOnBoard {
-                    SoundEngine.shared.playLand()
-                }
-                discs[index].isOnBoard = true
+            DispatchQueue.main.async { [weak self] in
+                self?.handleDiscBoardContact(discNode: discNode, contactPoint: contactPoint)
             }
             return
         }
 
-        // ディスクと床の接触 → 完全に落ちたとみなして削除
         if (categoryA == PhysicsCategory.disc && categoryB == PhysicsCategory.floor) ||
             (categoryA == PhysicsCategory.floor && categoryB == PhysicsCategory.disc) {
             let discNode = categoryA == PhysicsCategory.disc ? nodeA : nodeB
-            if let index = discs.firstIndex(where: { $0.node === discNode }) {
-                discs.remove(at: index)
+            DispatchQueue.main.async { [weak self] in
+                self?.handleDiscFloorContact(discNode: discNode)
             }
-            discNode.removeFromParentNode()
             return
         }
+    }
+
+    private func handleDiscBoardContact(discNode: SCNNode, contactPoint: SCNVector3) {
+        let localPoint = boardNode.presentation.convertPosition(contactPoint, from: nil)
+        let (_, maxBounds) = boardNode.boundingBox
+        let topY = maxBounds.y
+        let epsilon: Float = 0.02
+        if localPoint.y < topY - epsilon { return }
+
+        if let index = discs.firstIndex(where: { $0.node === discNode }) {
+            if let body = discNode.physicsBody {
+                body.velocity = SCNVector3Zero
+                body.angularVelocity = SCNVector4Zero
+            }
+            if !discs[index].isOnBoard {
+                SoundEngine.shared.playLand()
+            }
+            discs[index].isOnBoard = true
+        }
+    }
+
+    private func handleDiscFloorContact(discNode: SCNNode) {
+        if let index = discs.firstIndex(where: { $0.node === discNode }) {
+            discs.remove(at: index)
+        }
+        discNode.removeFromParentNode()
     }
 }
 
