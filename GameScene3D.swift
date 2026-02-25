@@ -91,6 +91,15 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
     var currentCenterOfMass: CGPoint { smoothedCenterOfMass }
     var activeDiscCount: Int { discs.filter { $0.isOnBoard }.count }
 
+    /// タワーの実測高さ（ボード上面からの最高ディスクまでの距離）
+    var towerHeight: Float {
+        let boardTopY: Float = 1.0 + 0.2  // boardNode.position.y + half height
+        let onBoard = discs.filter { $0.isOnBoard }
+        guard !onBoard.isEmpty else { return 0 }
+        let maxY = onBoard.map { $0.node.presentation.position.y }.max() ?? boardTopY
+        return max(0, maxY - boardTopY)
+    }
+
     private struct SemanticDisc {
         let node: SCNNode
         let word: String
@@ -431,6 +440,13 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
         node.name = "targetMarker"
         boardNode.addChildNode(node)
         targetMarkerNode = node
+
+        let pulseUp = SCNAction.scale(to: 1.3, duration: 0.8)
+        pulseUp.timingMode = .easeInEaseOut
+        let pulseDown = SCNAction.scale(to: 0.85, duration: 0.8)
+        pulseDown.timingMode = .easeInEaseOut
+        let pulse = SCNAction.sequence([pulseUp, pulseDown])
+        node.runAction(SCNAction.repeatForever(pulse))
     }
 
     private func updateTargetMarkerPosition(centerOfMass: CGPoint) {

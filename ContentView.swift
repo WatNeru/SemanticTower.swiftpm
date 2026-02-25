@@ -192,8 +192,10 @@ private struct GameContentView: View {
 
                 GameStatsView(
                     discCount: controller.scene3D.activeDiscCount,
+                    towerHeight: controller.scene3D.towerHeight,
                     perfectStreak: controller.perfectStreak,
-                    isBalanced: isBalanced(controller.scene3D.currentCenterOfMass)
+                    isBalanced: isBalanced(controller.scene3D.currentCenterOfMass),
+                    fallCount: controller.fallCount
                 )
             }
         }

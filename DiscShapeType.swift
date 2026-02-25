@@ -15,17 +15,20 @@ enum DiscShapeType: String, CaseIterable {
 
     /// 半径 `radius` の UIBezierPath を生成（中心は原点）。
     func bezierPath(radius: CGFloat) -> UIBezierPath {
+        let path: UIBezierPath
         switch self {
-        case .circle:   return Self.circlePath(radius: radius)
-        case .star:     return Self.starPath(radius: radius, points: 5, smoothness: 0.45)
-        case .heart:    return Self.heartPath(radius: radius)
-        case .hexagon:  return Self.polygonPath(radius: radius, sides: 6)
-        case .diamond:  return Self.polygonPath(radius: radius, sides: 4)
-        case .flower:   return Self.flowerPath(radius: radius, petals: 6)
-        case .gear:     return Self.gearPath(radius: radius, teeth: 8)
-        case .cloud:    return Self.cloudPath(radius: radius)
-        case .rounded:  return Self.roundedSquarePath(radius: radius)
+        case .circle:   path = Self.circlePath(radius: radius)
+        case .star:     path = Self.starPath(radius: radius, points: 5, smoothness: 0.52)
+        case .heart:    path = Self.heartPath(radius: radius)
+        case .hexagon:  path = Self.polygonPath(radius: radius, sides: 6)
+        case .diamond:  path = Self.polygonPath(radius: radius, sides: 4)
+        case .flower:   path = Self.flowerPath(radius: radius, petals: 6)
+        case .gear:     path = Self.gearPath(radius: radius, teeth: 8)
+        case .cloud:    path = Self.cloudPath(radius: radius)
+        case .rounded:  path = Self.roundedSquarePath(radius: radius)
         }
+        path.flatness = 0.1
+        return path
     }
 
     /// テクスチャ用のクリッピングパスを生成（テクスチャ座標 size×size 内、中心基準）。
@@ -208,40 +211,33 @@ extension DiscShapeType {
 
     private static func cloudPath(radius: CGFloat) -> UIBezierPath {
         let path = UIBezierPath()
-        let scale = radius / 50
+        let scl = radius / 50
 
-        path.move(to: CGPoint(x: -35 * scale, y: 10 * scale))
+        // 平底 + 3つの丸い盛り上がりで構成するシンプルな雲
+        let baseY: CGFloat = 15 * scl
+
+        path.move(to: CGPoint(x: -38 * scl, y: baseY))
+
+        // 左の丸み
         path.addCurve(
-            to: CGPoint(x: -30 * scale, y: -20 * scale),
-            controlPoint1: CGPoint(x: -45 * scale, y: -5 * scale),
-            controlPoint2: CGPoint(x: -42 * scale, y: -20 * scale)
+            to: CGPoint(x: -20 * scl, y: -15 * scl),
+            controlPoint1: CGPoint(x: -45 * scl, y: -5 * scl),
+            controlPoint2: CGPoint(x: -35 * scl, y: -15 * scl)
         )
+        // 中央の丸み（一番高い）
         path.addCurve(
-            to: CGPoint(x: -5 * scale, y: -35 * scale),
-            controlPoint1: CGPoint(x: -22 * scale, y: -35 * scale),
-            controlPoint2: CGPoint(x: -12 * scale, y: -40 * scale)
+            to: CGPoint(x: 20 * scl, y: -15 * scl),
+            controlPoint1: CGPoint(x: -8 * scl, y: -42 * scl),
+            controlPoint2: CGPoint(x: 8 * scl, y: -42 * scl)
         )
+        // 右の丸み
         path.addCurve(
-            to: CGPoint(x: 25 * scale, y: -25 * scale),
-            controlPoint1: CGPoint(x: 5 * scale, y: -42 * scale),
-            controlPoint2: CGPoint(x: 18 * scale, y: -35 * scale)
+            to: CGPoint(x: 38 * scl, y: baseY),
+            controlPoint1: CGPoint(x: 35 * scl, y: -15 * scl),
+            controlPoint2: CGPoint(x: 45 * scl, y: -5 * scl)
         )
-        path.addCurve(
-            to: CGPoint(x: 40 * scale, y: -5 * scale),
-            controlPoint1: CGPoint(x: 38 * scale, y: -22 * scale),
-            controlPoint2: CGPoint(x: 45 * scale, y: -15 * scale)
-        )
-        path.addCurve(
-            to: CGPoint(x: 35 * scale, y: 15 * scale),
-            controlPoint1: CGPoint(x: 48 * scale, y: 5 * scale),
-            controlPoint2: CGPoint(x: 42 * scale, y: 12 * scale)
-        )
-        path.addLine(to: CGPoint(x: -35 * scale, y: 15 * scale))
-        path.addCurve(
-            to: CGPoint(x: -35 * scale, y: 10 * scale),
-            controlPoint1: CGPoint(x: -38 * scale, y: 15 * scale),
-            controlPoint2: CGPoint(x: -38 * scale, y: 12 * scale)
-        )
+        // 平底
+        path.addLine(to: CGPoint(x: -38 * scl, y: baseY))
         path.close()
         return path
     }
