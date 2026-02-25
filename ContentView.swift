@@ -225,19 +225,25 @@ private struct GameContentView: View {
 
     private var inputArea: some View {
         VStack(spacing: 10) {
-            Picker("Input", selection: $controller.inputMode) {
-                ForEach(InputMode.allCases, id: \.self) { mode in
-                    Text(mode.rawValue).tag(mode)
+            if !controller.isDemoMode {
+                Picker("Input", selection: $controller.inputMode) {
+                    ForEach(InputMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 4)
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 4)
 
-            switch controller.inputMode {
-            case .keyboard:
-                keyboardInputRow
-            case .handwriting:
-                handwritingInputArea
+            if controller.isDemoMode {
+                demoDropButton
+            } else {
+                switch controller.inputMode {
+                case .keyboard:
+                    keyboardInputRow
+                case .handwriting:
+                    handwritingInputArea
+                }
             }
         }
         .padding(16)
@@ -245,31 +251,61 @@ private struct GameContentView: View {
         .padding(.horizontal, 20)
     }
 
-    private var keyboardInputRow: some View {
-        HStack(spacing: 10) {
+    private var demoDropButton: some View {
+        Button { performDrop() } label: {
             HStack(spacing: 6) {
-                Image(systemName: "character.cursor.ibeam")
-                    .foregroundColor(STTheme.Colors.textTertiary)
-                    .font(.system(size: 13))
-
-                TextField("type a word…", text: $controller.wordInput)
-                    .textInputAutocapitalization(.never)
-                    .disableAutocorrection(true)
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
-                    .foregroundColor(STTheme.Colors.textPrimary)
+                Image(systemName: "arrow.down.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                Text("Drop \"\(controller.nextDemoWord)\"")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.ultraThinMaterial)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(STTheme.Colors.glassWhiteBorder, lineWidth: 0.5)
-            )
+            .foregroundColor(STTheme.Colors.cosmicDeep)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(Capsule().fill(STTheme.Colors.accentGold))
+            .glow(STTheme.Colors.accentGold, radius: 4)
+        }
+    }
 
-            actionButtons
+    private var keyboardInputRow: some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 10) {
+                HStack(spacing: 6) {
+                    Image(systemName: "character.cursor.ibeam")
+                        .foregroundColor(STTheme.Colors.textTertiary)
+                        .font(.system(size: 13))
+
+                    TextField("type a word…", text: $controller.wordInput)
+                        .textInputAutocapitalization(.never)
+                        .disableAutocorrection(true)
+                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                        .foregroundColor(STTheme.Colors.textPrimary)
+                        .onSubmit { performDrop() }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(.ultraThinMaterial)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(STTheme.Colors.glassWhiteBorder, lineWidth: 0.5)
+                )
+
+                actionButtons
+            }
+
+            if let err = controller.keyboardError {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(STTheme.Colors.missOrange)
+                    Text(err)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundColor(STTheme.Colors.missOrange)
+                }
+            }
         }
     }
 
@@ -314,30 +350,25 @@ private struct GameContentView: View {
         if controller.inputMode == .handwriting {
             return !controller.hasHandwritingStrokes
         }
-        return false
+        return controller.wordInput
+            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func performDrop() {
-        if controller.inputMode == .handwriting {
+        feedbackID = UUID()
+        if controller.isDemoMode {
+            lastDroppedWord = controller.nextDemoWord
+            controller.dropDemoWord()
+            showDropFeedback = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                showDropFeedback = false
+            }
+        } else if controller.inputMode == .handwriting {
             Task { @MainActor in
                 await controller.recognizeAndDrop()
-                playScoreSound(controller.lastScore)
             }
-            feedbackID = UUID()
         } else {
-            lastDroppedWord = controller.wordInput
-            controller.dropCurrentWord()
-            feedbackID = UUID()
-            playScoreSound(controller.lastScore)
-        }
-    }
-
-    private func playScoreSound(_ score: ScoreResult?) {
-        guard let score = score else { return }
-        switch score.rank {
-        case .perfect: SoundEngine.shared.playPerfect()
-        case .nice: SoundEngine.shared.playNice()
-        case .miss: SoundEngine.shared.playMiss()
+            controller.dropKeyboardWord()
         }
     }
 
