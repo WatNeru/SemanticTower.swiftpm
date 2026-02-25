@@ -36,80 +36,11 @@ enum DiscShapeType: String, CaseIterable {
         return path
     }
 
-    // MARK: - Word → Shape mapping
+    // MARK: - Word → Shape mapping (delegated to WordDatabase)
 
-    /// 単語からカテゴリを推定して形状を返す。
     static func shape(for word: String) -> DiscShapeType {
-        let key = word.lowercased()
-        if let direct = directMapping[key] { return direct }
-        return categoryMapping(for: key)
+        WordDatabase.shape(for: word)
     }
-
-    // MARK: - Direct overrides
-
-    private static let directMapping: [String: DiscShapeType] = [
-        "love": .heart,
-        "heart": .heart,
-        "star": .star,
-        "sun": .star,
-        "moon": .star,
-        "diamond": .diamond,
-        "crown": .star,
-        "flower": .flower,
-        "garden": .flower,
-        "cloud": .cloud,
-        "dream": .cloud,
-        "idea": .star,
-        "magic": .star,
-        "music": .flower
-    ]
-
-    /// 単語が属するカテゴリから形を返す
-    private static func categoryMapping(for word: String) -> DiscShapeType {
-        if animals.contains(word)  { return .hexagon }
-        if nature.contains(word)   { return .flower }
-        if machines.contains(word) { return .gear }
-        if objects.contains(word)  { return .diamond }
-        if emotions.contains(word) { return .heart }
-        if abstract.contains(word) { return .star }
-        return .circle
-    }
-
-    private static let animals: Set<String> = [
-        "dog", "cat", "lion", "eagle", "whale", "bird", "fish",
-        "rabbit", "hare", "ant", "bear", "horse", "elephant",
-        "tiger", "monkey", "snake", "turtle", "bug", "wolf",
-        "fox", "penguin", "butterfly", "cow", "pig", "sheep",
-        "deer", "frog", "animal"
-    ]
-
-    private static let nature: Set<String> = [
-        "tree", "river", "mountain", "forest", "ocean", "leaf",
-        "rain", "snow", "wind", "fire", "earth", "sky",
-        "volcano", "island", "nature"
-    ]
-
-    private static let machines: Set<String> = [
-        "car", "train", "airplane", "computer", "robot", "phone",
-        "camera", "rocket", "bicycle", "bus", "ship", "helicopter",
-        "engine", "battery", "satellite", "drone", "machine"
-    ]
-
-    private static let objects: Set<String> = [
-        "stone", "chair", "table", "book", "key", "clock",
-        "lamp", "cup", "ball", "hammer", "guitar", "bell",
-        "pen", "bag", "gift", "shield", "sword", "ring", "object"
-    ]
-
-    private static let emotions: Set<String> = [
-        "happy", "sad", "angry", "calm", "excited", "fear",
-        "surprise", "hope", "joy", "peace", "pride", "human"
-    ]
-
-    private static let abstract: Set<String> = [
-        "freedom", "justice", "power", "time", "art", "science",
-        "wisdom", "courage", "truth", "beauty", "chaos", "energy"
-    ]
 }
 
 // MARK: - Path Generators
