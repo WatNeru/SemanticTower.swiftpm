@@ -246,6 +246,7 @@ private struct GameContentView: View {
             }
         }
         .padding(16)
+        .contentShape(Rectangle())
         .glassCard(cornerRadius: 22, opacity: 0.12)
         .padding(.horizontal, 20)
     }

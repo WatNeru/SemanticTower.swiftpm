@@ -12,7 +12,7 @@ enum InputMode: String, CaseIterable {
 @MainActor
 final class SemanticGameController: ObservableObject {
     @Published var wordInput: String = ""
-    @Published var isDemoMode: Bool = true
+    @Published var isDemoMode: Bool = false
     @Published var inputMode: InputMode = .handwriting
     @Published var handwritingDrawing: PKDrawing = PKDrawing()
     @Published var lastScore: ScoreResult?

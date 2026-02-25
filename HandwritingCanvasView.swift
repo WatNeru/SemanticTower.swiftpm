@@ -1,33 +1,64 @@
 import SwiftUI
 import PencilKit
 
+// MARK: - タッチを確実にキャンバスに渡すコンテナ（SwiftUI のヒットテスト不具合対策）
+final class CanvasHostView: UIView {
+    let canvasView: PKCanvasView
+
+    init(canvasView: PKCanvasView) {
+        self.canvasView = canvasView
+        super.init(frame: .zero)
+        backgroundColor = .clear
+        isUserInteractionEnabled = true
+        addSubview(canvasView)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        canvasView.frame = bounds
+    }
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        let hit = super.hitTest(point, with: event)
+        // 自分に当たった場合はキャンバスに渡す（指・ペンの描画を確実に受けさせる）
+        if hit == self, bounds.contains(point) {
+            return canvasView.hitTest(canvasView.convert(point, from: self), with: event) ?? canvasView
+        }
+        return hit
+    }
+}
+
 /// PencilKit ベースの手書き入力キャンバス。
 /// Apple Pencil と指の両方に対応。白背景・黒線で Vision 認識精度を最大化。
 struct HandwritingCanvasView: UIViewRepresentable {
     @Binding var drawing: PKDrawing
     var canvasSize: CGSize = CGSize(width: 400, height: 120)
 
-    func makeUIView(context: Context) -> PKCanvasView {
+    func makeUIView(context: Context) -> CanvasHostView {
         let canvas = PKCanvasView()
         canvas.delegate = context.coordinator
+        // 指・Apple Pencil・第三者のスタイラスすべてで描画できるようにする
         canvas.drawingPolicy = .anyInput
         canvas.allowsFingerDrawing = true
         canvas.backgroundColor = .white
         canvas.tool = PKInkingTool(.pen, color: .black, width: 3)
-        canvas.isOpaque = false
+        // Metal / SceneView 上でも確実に描画が見えるよう、不透明レイヤとして扱う
+        canvas.isOpaque = true
         canvas.isScrollEnabled = false
         canvas.showsVerticalScrollIndicator = false
         canvas.showsHorizontalScrollIndicator = false
         canvas.isMultipleTouchEnabled = true
         canvas.isUserInteractionEnabled = true
-        return canvas
+        return CanvasHostView(canvasView: canvas)
     }
 
-    func updateUIView(_ uiView: PKCanvasView, context: Context) {
-        // Coordinator が更新中の場合は再入を防ぐ
+    func updateUIView(_ uiView: CanvasHostView, context: Context) {
+        let canvas = uiView.canvasView
         guard !context.coordinator.isUpdating else { return }
-        if uiView.drawing != drawing {
-            uiView.drawing = drawing
+        if canvas.drawing != drawing {
+            canvas.drawing = drawing
         }
     }
 
@@ -44,9 +75,9 @@ struct HandwritingCanvasView: UIViewRepresentable {
         }
 
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
-            // ビュー更新サイクル外で @Published を変更する
             isUpdating = true
             DispatchQueue.main.async { [weak self] in
+                print("[HandwritingCanvasView] drawing changed, bounds=\(canvasView.drawing.bounds)")
                 self?.drawing = canvasView.drawing
                 self?.isUpdating = false
             }
@@ -90,23 +121,23 @@ struct HandwritingInputPanel: View {
 
     private var canvasArea: some View {
         ZStack(alignment: .center) {
-            HandwritingCanvasView(
-                drawing: $controller.handwritingDrawing,
-                canvasSize: CGSize(width: 340, height: 120)
-            )
-            .disabled(controller.isDemoMode)
-
+            // ガイド・プレースホルダーは下層（ヒットテスト無効）
+            baselineGuide
             if controller.handwritingDrawing.bounds.isEmpty && !controller.isDemoMode {
                 Text("Write a word here")
                     .font(.system(size: 18, weight: .medium, design: .rounded))
                     .foregroundColor(.gray.opacity(0.4))
                     .allowsHitTesting(false)
             }
-
-            baselineGuide
+            // キャンバスを最前面にし、タッチを確実に受けさせる（contentShape は付けない）
+            HandwritingCanvasView(
+                drawing: $controller.handwritingDrawing,
+                canvasSize: CGSize(width: 340, height: 120)
+            )
+            .frame(maxWidth: .infinity, minHeight: 120, maxHeight: 120)
+            .disabled(controller.isDemoMode)
         }
         .frame(height: 120)
-        .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
