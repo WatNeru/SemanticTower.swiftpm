@@ -222,8 +222,8 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
         word: String = "",
         diskShape: DiskShape = .perfect
     ) {
-        let baseRadius: CGFloat = 0.3
-        let height: CGFloat = 0.2
+        let baseRadius: CGFloat = 0.45
+        let height: CGFloat = 0.25
         let shapeType = DiscShapeType.shape(for: word)
 
         // 親ノード: 透明な円柱（当たり判定専用、全形状共通）
@@ -237,7 +237,7 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
         // 子ノード: 見た目の形状（SCNShape で星・ハート・六角形など）
         let visualPath = shapeType.bezierPath(radius: baseRadius)
         let visualGeometry = SCNShape(path: visualPath, extrusionDepth: height)
-        visualGeometry.chamferRadius = 0.015
+        visualGeometry.chamferRadius = 0.025
 
         let texture = DiscTextureGenerator.generate(
             word: word,

@@ -10,7 +10,7 @@ enum DiscTextureGenerator {
         diskShape: DiskShape,
         shapeType: DiscShapeType = .circle
     ) -> UIImage {
-        let size = CGSize(width: 256, height: 256)
+        let size = CGSize(width: 512, height: 512)
         let renderer = UIGraphicsImageRenderer(size: size)
 
         let textColor = SemanticColorHelper.contrastingTextColor(for: baseColor)
@@ -67,7 +67,7 @@ enum DiscTextureGenerator {
         diskShape: DiskShape
     ) {
         let iconAlpha: CGFloat = diskShape == .miss ? 0.5 : 1.0
-        let iconSize: CGFloat = 64
+        let iconSize: CGFloat = 128
         let tintedColor = color.withAlphaComponent(iconAlpha)
 
         guard let iconImage = WordIconMapper.renderIcon(
@@ -91,7 +91,7 @@ enum DiscTextureGenerator {
         color: UIColor,
         diskShape: DiskShape
     ) {
-        let fontSize: CGFloat = word.count <= 4 ? 36 : word.count <= 7 ? 28 : 22
+        let fontSize: CGFloat = word.count <= 4 ? 64 : word.count <= 7 ? 48 : 36
         let font = UIFont.systemFont(ofSize: fontSize, weight: .bold)
 
         let alpha: CGFloat

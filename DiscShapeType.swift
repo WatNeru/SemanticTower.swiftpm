@@ -30,7 +30,7 @@ enum DiscShapeType: String, CaseIterable {
 
     /// テクスチャ用のクリッピングパスを生成（テクスチャ座標 size×size 内、中心基準）。
     func texturePath(size: CGFloat) -> UIBezierPath {
-        let path = bezierPath(radius: size / 2 - 4)
+        let path = bezierPath(radius: size / 2 - 8)
         let transform = CGAffineTransform(translationX: size / 2, y: size / 2)
         path.apply(transform)
         return path
