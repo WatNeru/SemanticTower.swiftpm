@@ -128,7 +128,7 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
 
         // カメラ
         cameraNode.camera = SCNCamera()
-        cameraNode.position = SCNVector3(0, 4, 8)
+        cameraNode.position = SCNVector3(0, 6, 11)
         cameraNode.eulerAngles = SCNVector3(-Float.pi / 6, 0, 0)
         scene.rootNode.addChildNode(cameraNode)
 
@@ -167,7 +167,7 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
         scene.rootNode.addChildNode(floorNode)
 
         // タワーの土台（傾ける板）— PBR ガラス風マテリアル
-        let boardGeometry = SCNBox(width: 6, height: 0.4, length: 6, chamferRadius: 0.2)
+        let boardGeometry = SCNBox(width: 8, height: 0.4, length: 8, chamferRadius: 0.25)
         Self.applyGlassMaterial(to: boardGeometry.firstMaterial)
         boardNode = SCNNode(geometry: boardGeometry)
         boardNode.position = SCNVector3(0, 1.0, 0)
@@ -225,8 +225,8 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
         word: String = "",
         diskShape: DiskShape = .perfect
     ) {
-        let baseRadius: CGFloat = 0.45
-        let height: CGFloat = 0.25
+        let baseRadius: CGFloat = 0.85
+        let height: CGFloat = 0.3
         let shapeType = DiscShapeType.shape(for: word)
 
         // 親ノード: 透明な円柱（当たり判定専用、全形状共通）
@@ -240,7 +240,7 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
         // 子ノード: 見た目の形状（SCNShape で星・ハート・六角形など）
         let visualPath = shapeType.bezierPath(radius: baseRadius)
         let visualGeometry = SCNShape(path: visualPath, extrusionDepth: height)
-        visualGeometry.chamferRadius = 0.025
+        visualGeometry.chamferRadius = 0.04
 
         let texture = DiscTextureGenerator.generate(
             word: word,
@@ -269,9 +269,9 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
             node.scale = SCNVector3(1.25, 1.0, 0.75)
         }
 
-        let localX = Float(max(-1.0, min(1.0, position.x))) * 2.6
-        let localZ = Float(max(-1.0, min(1.0, position.y))) * 2.6
-        let startY: Float = 4.0
+        let localX = Float(max(-1.0, min(1.0, position.x))) * 3.4
+        let localZ = Float(max(-1.0, min(1.0, position.y))) * 3.4
+        let startY: Float = 5.0
         node.position = SCNVector3(localX, startY, localZ)
 
         // 当たり判定: 全形状共通の円柱（親ノードのジオメトリから自動生成）
@@ -359,19 +359,19 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
 #endif
 
         let natureNode = makeTextNode("Nature", color: natureColor)
-        natureNode.position = SCNVector3(3.4, 1.8, 0)
+        natureNode.position = SCNVector3(4.5, 2.0, 0)
         scene.rootNode.addChildNode(natureNode)
 
         let machineNode = makeTextNode("Machine", color: machineColor)
-        machineNode.position = SCNVector3(-3.4, 1.8, 0)
+        machineNode.position = SCNVector3(-4.5, 2.0, 0)
         scene.rootNode.addChildNode(machineNode)
 
         let livingNode = makeTextNode("Living", color: livingColor)
-        livingNode.position = SCNVector3(0, 1.8, 3.4)
+        livingNode.position = SCNVector3(0, 2.0, 4.5)
         scene.rootNode.addChildNode(livingNode)
 
         let objectNode = makeTextNode("Object", color: objectColor)
-        objectNode.position = SCNVector3(0, 1.8, -3.4)
+        objectNode.position = SCNVector3(0, 2.0, -4.5)
         scene.rootNode.addChildNode(objectNode)
     }
 
@@ -390,8 +390,8 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
         } else {
             let (sumX, sumY) = activeDiscs.reduce(into: (0.0, 0.0)) { acc, disc in
                 let worldPos = disc.node.presentation.position
-                let normalizedX = max(-1.0, min(1.0, Double(worldPos.x) / 2.5))
-                let normalizedY = max(-1.0, min(1.0, Double(worldPos.z) / 2.5))
+                let normalizedX = max(-1.0, min(1.0, Double(worldPos.x) / 3.5))
+                let normalizedY = max(-1.0, min(1.0, Double(worldPos.z) / 3.5))
                 acc.0 += normalizedX
                 acc.1 += normalizedY
             }
@@ -413,7 +413,7 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
     private func addTargetMarker() {
         // 薄い円環（トーラス）で「ここに落とす」を表示。横向き楕円状にスケール。
         // アクセシビリティ: 視認性の高いインディゴ系（アンカーラベルと調和しつつ区別可能）
-        let torus = SCNTorus(ringRadius: 0.35, pipeRadius: 0.03)
+        let torus = SCNTorus(ringRadius: 0.6, pipeRadius: 0.04)
         let mat = SCNMaterial()
 #if canImport(UIKit)
         let markerColor = UIColor(red: 0.35, green: 0.42, blue: 0.82, alpha: 1)
@@ -436,8 +436,8 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
     private func updateTargetMarkerPosition(centerOfMass: CGPoint) {
         guard let marker = targetMarkerNode else { return }
         // 重心の反対側が最適落下位置
-        let targetX = Float(-centerOfMass.x) * 2.5
-        let targetZ = Float(-centerOfMass.y) * 2.5
+        let targetX = Float(-centerOfMass.x) * 3.5
+        let targetZ = Float(-centerOfMass.y) * 3.5
         marker.position = SCNVector3(targetX, 0.21, targetZ)
         // ディスクが無いときは非表示
         marker.isHidden = discs.filter { $0.isOnBoard }.isEmpty
