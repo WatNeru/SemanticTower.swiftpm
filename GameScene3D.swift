@@ -224,10 +224,20 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
     ) {
         let baseRadius: CGFloat = 0.3
         let height: CGFloat = 0.2
-
         let shapeType = DiscShapeType.shape(for: word)
 
-        let geometry = SCNCylinder(radius: baseRadius, height: height)
+        // 親ノード: 透明な円柱（当たり判定専用、全形状共通）
+        let collisionGeometry = SCNCylinder(radius: baseRadius, height: height)
+        let invisibleMat = SCNMaterial()
+        invisibleMat.diffuse.contents = PlatformColor.clear
+        invisibleMat.transparency = 0
+        collisionGeometry.materials = [invisibleMat]
+        let node = SCNNode(geometry: collisionGeometry)
+
+        // 子ノード: 見た目の形状（SCNShape で星・ハート・六角形など）
+        let visualPath = shapeType.bezierPath(radius: baseRadius)
+        let visualGeometry = SCNShape(path: visualPath, extrusionDepth: height)
+        visualGeometry.chamferRadius = 0.015
 
         let texture = DiscTextureGenerator.generate(
             word: word,
@@ -235,14 +245,17 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
             diskShape: diskShape,
             shapeType: shapeType
         )
-        DiscMaterialHelper.applyToCylinder(
-            geometry: geometry,
+        DiscMaterialHelper.applyToShape(
+            geometry: visualGeometry,
             baseColor: color,
             diskShape: diskShape,
-            topTexture: texture
+            faceTexture: texture
         )
 
-        let node = SCNNode(geometry: geometry)
+        let visualNode = SCNNode(geometry: visualGeometry)
+        visualNode.eulerAngles.x = -.pi / 2
+        visualNode.position = SCNVector3(0, 0, 0)
+        node.addChildNode(visualNode)
 
         switch diskShape {
         case .perfect:
@@ -255,10 +268,10 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
 
         let localX = Float(max(-1.0, min(1.0, position.x))) * 2.6
         let localZ = Float(max(-1.0, min(1.0, position.y))) * 2.6
-
         let startY: Float = 4.0
         node.position = SCNVector3(localX, startY, localZ)
 
+        // 当たり判定: 全形状共通の円柱（親ノードのジオメトリから自動生成）
         let body = SCNPhysicsBody.dynamic()
         body.mass = CGFloat(mass)
         body.restitution = PhysicsConfig.restitution
