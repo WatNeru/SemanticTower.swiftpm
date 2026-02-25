@@ -156,10 +156,13 @@ final class SemanticGameController: ObservableObject {
             atSemanticPosition: semanticPos,
             color: diskColor,
             mass: baseMass,
+            word: lowercased,
             diskShape: diskShape
         )
         placedWords.append((word: lowercased, position: semanticPos))
         updateStreak(diskShape: diskShape)
+
+        SoundEngine.shared.playDrop()
     }
 
     private func updateStreak(diskShape: DiskShape) {

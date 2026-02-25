@@ -215,12 +215,29 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
     /// セマンティック座標をボード上の位置にマッピングしてディスクを追加。
     /// position は [-1, 1] の範囲を想定。
     /// diskShape: .perfect = 正円（安定）, .nice = 歪んだ円盤（不安定）, .miss = 欠けた円盤（最も不安定）
-    func addDisc(atSemanticPosition position: CGPoint, color: PlatformColor, mass: Double, diskShape: DiskShape = .perfect) {
+    func addDisc(
+        atSemanticPosition position: CGPoint,
+        color: PlatformColor,
+        mass: Double,
+        word: String = "",
+        diskShape: DiskShape = .perfect
+    ) {
         let baseRadius: CGFloat = 0.3
         let height: CGFloat = 0.2
 
         let geometry = SCNCylinder(radius: baseRadius, height: height)
-        Self.applyDiscMaterial(to: geometry.firstMaterial, baseColor: color, diskShape: diskShape)
+
+        let texture = DiscTextureGenerator.generate(
+            word: word,
+            baseColor: color,
+            diskShape: diskShape
+        )
+        Self.applyDiscMaterial(
+            to: geometry,
+            baseColor: color,
+            diskShape: diskShape,
+            topTexture: texture
+        )
 
         let node = SCNNode(geometry: geometry)
 
@@ -291,42 +308,16 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         mat.isDoubleSided = true
     }
 
-    private static func applyDiscMaterial(to material: SCNMaterial?, baseColor: PlatformColor, diskShape: DiskShape) {
-        guard let mat = material else { return }
-        mat.lightingModel = .physicallyBased
-        mat.diffuse.contents = baseColor
-        mat.isDoubleSided = false
-#if canImport(UIKit)
-        switch diskShape {
-        case .perfect:
-            mat.specular.contents = UIColor(white: 0.8, alpha: 1)
-            mat.roughness.contents = 0.08
-            mat.metalness.contents = 0.05
-        case .nice:
-            mat.specular.contents = UIColor(white: 0.5, alpha: 1)
-            mat.roughness.contents = 0.25
-            mat.metalness.contents = 0.02
-        case .miss:
-            mat.specular.contents = UIColor(white: 0.2, alpha: 1)
-            mat.roughness.contents = 0.6
-            mat.metalness.contents = 0
-        }
-#else
-        switch diskShape {
-        case .perfect:
-            mat.specular.contents = NSColor(white: 0.8, alpha: 1)
-            mat.roughness.contents = 0.08
-            mat.metalness.contents = 0.05
-        case .nice:
-            mat.specular.contents = NSColor(white: 0.5, alpha: 1)
-            mat.roughness.contents = 0.25
-            mat.metalness.contents = 0.02
-        case .miss:
-            mat.specular.contents = NSColor(white: 0.2, alpha: 1)
-            mat.roughness.contents = 0.6
-            mat.metalness.contents = 0
-        }
-#endif
+    private static func applyDiscMaterial(
+        to geometry: SCNCylinder,
+        baseColor: PlatformColor,
+        diskShape: DiskShape,
+        topTexture: UIImage
+    ) {
+        DiscMaterialHelper.apply(
+            to: geometry, baseColor: baseColor,
+            diskShape: diskShape, topTexture: topTexture
+        )
     }
 
     private func addAnchorLabels() {
@@ -517,10 +508,12 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
                 return
             }
             if let index = discs.firstIndex(where: { $0.node === discNode }) {
-                // ボードに着地した瞬間の「ポン跳ね」を抑えるために速度を殺す。
                 if let body = discNode.physicsBody {
                     body.velocity = SCNVector3Zero
                     body.angularVelocity = SCNVector4Zero
+                }
+                if !discs[index].isOnBoard {
+                    SoundEngine.shared.playLand()
                 }
                 discs[index].isOnBoard = true
             }

@@ -389,11 +389,24 @@ private struct GameContentView: View {
                 showDropFeedback = false
             }
         } else if controller.inputMode == .handwriting {
-            Task { @MainActor in await controller.recognizeAndDrop() }
+            Task { @MainActor in
+                await controller.recognizeAndDrop()
+                playScoreSound(controller.lastScore)
+            }
             feedbackID = UUID()
         } else {
             controller.dropCurrentWord()
             feedbackID = UUID()
+            playScoreSound(controller.lastScore)
+        }
+    }
+
+    private func playScoreSound(_ score: ScoreResult?) {
+        guard let score = score else { return }
+        switch score.rank {
+        case .perfect: SoundEngine.shared.playPerfect()
+        case .nice: SoundEngine.shared.playNice()
+        case .miss: SoundEngine.shared.playMiss()
         }
     }
 
