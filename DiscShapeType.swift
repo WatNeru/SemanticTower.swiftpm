@@ -170,39 +170,37 @@ extension DiscShapeType {
     private static func gearPath(radius: CGFloat, teeth: Int) -> UIBezierPath {
         let path = UIBezierPath()
         let outerRadius = radius
-        let innerRadius = radius * 0.72
-        let toothWidth: CGFloat = .pi / CGFloat(teeth) * 0.6
+        let innerRadius = radius * 0.75
+        let totalPoints = teeth * 2
+        let angleStep = (.pi * 2) / CGFloat(totalPoints)
+        let startAngle: CGFloat = -.pi / 2
+        let toothHalfWidth: CGFloat = angleStep * 0.4
 
         for idx in 0..<teeth {
-            let baseAngle = (.pi * 2 / CGFloat(teeth)) * CGFloat(idx) - .pi / 2
+            let outerAngle = startAngle + angleStep * CGFloat(idx * 2)
+            let innerAngle = startAngle + angleStep * CGFloat(idx * 2 + 1)
 
-            let outerStart = CGPoint(
-                x: cos(baseAngle - toothWidth / 2) * outerRadius,
-                y: sin(baseAngle - toothWidth / 2) * outerRadius
+            let outerLeft = CGPoint(
+                x: cos(outerAngle - toothHalfWidth) * outerRadius,
+                y: sin(outerAngle - toothHalfWidth) * outerRadius
             )
-            let outerEnd = CGPoint(
-                x: cos(baseAngle + toothWidth / 2) * outerRadius,
-                y: sin(baseAngle + toothWidth / 2) * outerRadius
+            let outerRight = CGPoint(
+                x: cos(outerAngle + toothHalfWidth) * outerRadius,
+                y: sin(outerAngle + toothHalfWidth) * outerRadius
             )
-
-            let nextBase = (.pi * 2 / CGFloat(teeth)) * CGFloat(idx + 1) - .pi / 2
-            let innerStart = CGPoint(
-                x: cos(baseAngle + toothWidth / 2) * innerRadius,
-                y: sin(baseAngle + toothWidth / 2) * innerRadius
+            let innerLeft = CGPoint(
+                x: cos(innerAngle - toothHalfWidth) * innerRadius,
+                y: sin(innerAngle - toothHalfWidth) * innerRadius
             )
-            let innerEnd = CGPoint(
-                x: cos(nextBase - toothWidth / 2) * innerRadius,
-                y: sin(nextBase - toothWidth / 2) * innerRadius
+            let innerRight = CGPoint(
+                x: cos(innerAngle + toothHalfWidth) * innerRadius,
+                y: sin(innerAngle + toothHalfWidth) * innerRadius
             )
 
-            if idx == 0 { path.move(to: outerStart) }
-            path.addLine(to: outerEnd)
-            path.addLine(to: innerStart)
-            path.addLine(to: innerEnd)
-            path.addLine(to: CGPoint(
-                x: cos(nextBase - toothWidth / 2) * outerRadius,
-                y: sin(nextBase - toothWidth / 2) * outerRadius
-            ))
+            if idx == 0 { path.move(to: outerLeft) }
+            path.addLine(to: outerRight)
+            path.addLine(to: innerLeft)
+            path.addLine(to: innerRight)
         }
         path.close()
         return path
