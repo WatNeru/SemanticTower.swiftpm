@@ -206,6 +206,19 @@ final class SemanticGameController: ObservableObject {
         }
     }
 
+    func resetGame() {
+        scene3D.resetBoard()
+        placedWords.removeAll()
+        perfectStreak = 0
+        fallCount = 0
+        lastFallenWord = nil
+        lastScore = nil
+        lastScoredWord = nil
+        clearHandwriting()
+        wordInput = ""
+        SoundEngine.shared.playTap()
+    }
+
     private func handleDiscFell(word: String) {
         placedWords.removeAll { $0.word == word }
         lastFallenWord = word

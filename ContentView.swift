@@ -115,6 +115,8 @@ private struct GameContentView: View {
             }
         }
         .sensoryFeedbackForScore(controller.lastScore)
+        .environment(\.sizeCategory, settings.largeText ? .accessibilityMedium : .large)
+        .contrast(settings.highContrast ? 0.3 : 0)
     }
 
     // MARK: - Gradient overlay
@@ -164,6 +166,14 @@ private struct GameContentView: View {
                     }
                     .sheet(isPresented: $showSettings) {
                         SettingsView(settings: settings)
+                    }
+
+                    Button {
+                        controller.resetGame()
+                    } label: {
+                        Image(systemName: "arrow.counterclockwise")
+                            .font(.system(size: 13))
+                            .foregroundColor(STTheme.Colors.textTertiary)
                     }
 
                     Image(systemName: "sparkles")

@@ -91,13 +91,13 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
     var currentCenterOfMass: CGPoint { smoothedCenterOfMass }
     var activeDiscCount: Int { discs.filter { $0.isOnBoard }.count }
 
-    /// タワーの実測高さ（ボード上面からの最高ディスクまでの距離）
+    /// タワーの表示高さ（実測距離 × 10 でスコア的な数値に）
     var towerHeight: Float {
-        let boardTopY: Float = 1.0 + 0.2  // boardNode.position.y + half height
+        let boardTopY: Float = 1.0 + 0.2
         let onBoard = discs.filter { $0.isOnBoard }
         guard !onBoard.isEmpty else { return 0 }
         let maxY = onBoard.map { $0.node.presentation.position.y }.max() ?? boardTopY
-        return max(0, maxY - boardTopY)
+        return max(0, (maxY - boardTopY) * 10)
     }
 
     private struct SemanticDisc {
@@ -106,6 +106,21 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
         var isOnBoard: Bool
     }
     private var discs: [SemanticDisc] = []
+
+    /// 全ディスクを削除してリセット
+    func resetBoard() {
+        for disc in discs {
+            disc.node.removeFromParentNode()
+        }
+        discs.removeAll()
+        smoothedCenterOfMass = .zero
+        currentPitchX = 0
+        currentRollZ = 0
+        tiltVelocityX = 0
+        tiltVelocityZ = 0
+        boardNode.eulerAngles = SCNVector3Zero
+    }
+
     /// 重心を立て直すための最適落下位置マーカー（ボードの子ノード）
     private var targetMarkerNode: SCNNode?
 

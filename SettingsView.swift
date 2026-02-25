@@ -128,20 +128,26 @@ struct SettingsView: View {
     private var accessibilitySection: some View {
         Section {
             Toggle(isOn: $settings.highContrast) {
-                Label("High Contrast", systemImage: "circle.lefthalf.filled")
+                VStack(alignment: .leading, spacing: 2) {
+                    Label("High Contrast", systemImage: "circle.lefthalf.filled")
+                    Text("Increases text contrast and border visibility")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
             }
 
             Toggle(isOn: $settings.largeText) {
-                Label("Larger Text", systemImage: "textformat.size.larger")
-            }
-
-            Toggle(isOn: $settings.reducedMotion) {
-                Label("Reduce Motion", systemImage: "figure.stand")
+                VStack(alignment: .leading, spacing: 2) {
+                    Label("Larger Text", systemImage: "textformat.size.larger")
+                    Text("Increases HUD text size for readability")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
             }
         } header: {
             Label("Accessibility", systemImage: "accessibility")
         } footer: {
-            Text("These settings supplement your device's system accessibility preferences.")
+            Text("Motion reduction follows your device's system setting (Settings → Accessibility → Motion).")
         }
     }
 

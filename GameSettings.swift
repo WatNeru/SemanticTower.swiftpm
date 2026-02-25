@@ -19,7 +19,6 @@ final class GameSettings: ObservableObject {
 
     @AppStorage("highContrast")     var highContrast: Bool = false
     @AppStorage("largeText")        var largeText: Bool = false
-    @AppStorage("reducedMotion")    var reducedMotion: Bool = false
     @AppStorage("hapticEnabled")    var hapticEnabled: Bool = true
 
     // MARK: - Game

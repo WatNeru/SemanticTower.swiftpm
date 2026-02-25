@@ -22,8 +22,8 @@ enum DiscTextureGenerator {
 
             // 常に正方形全体を描画。3D側の SCNShape が形をクリップする。
             drawBackground(cgCtx: cgCtx, rect: rect, baseColor: baseColor)
-            drawIcon(word: word, in: rect, color: iconColor, diskShape: diskShape)
-            drawWord(word, in: rect, color: textColor, diskShape: diskShape)
+            drawIcon(word: word, in: rect, color: iconColor, diskShape: diskShape, shapeType: shapeType)
+            drawWord(word, in: rect, color: textColor, diskShape: diskShape, shapeType: shapeType)
         }
     }
 
@@ -62,19 +62,22 @@ enum DiscTextureGenerator {
         word: String,
         in rect: CGRect,
         color: UIColor,
-        diskShape: DiskShape
+        diskShape: DiskShape,
+        shapeType: DiscShapeType
     ) {
         let iconAlpha: CGFloat = diskShape == .miss ? 0.5 : 1.0
-        let iconSize: CGFloat = 128
+        let compact = shapeType == .star || shapeType == .heart || shapeType == .cloud
+        let iconSize: CGFloat = compact ? 100 : 128
         let tintedColor = color.withAlphaComponent(iconAlpha)
 
         guard let iconImage = WordIconMapper.renderIcon(
             for: word, size: iconSize, color: tintedColor
         ) else { return }
 
+        let iconY = compact ? rect.height * 0.22 : rect.height * 0.18
         let iconRect = CGRect(
             x: (rect.width - iconSize) / 2,
-            y: rect.height * 0.18,
+            y: iconY,
             width: iconSize,
             height: iconSize
         )
@@ -87,9 +90,16 @@ enum DiscTextureGenerator {
         _ word: String,
         in rect: CGRect,
         color: UIColor,
-        diskShape: DiskShape
+        diskShape: DiskShape,
+        shapeType: DiscShapeType
     ) {
-        let fontSize: CGFloat = word.count <= 4 ? 64 : word.count <= 7 ? 48 : 36
+        let compact = shapeType == .star || shapeType == .heart || shapeType == .cloud
+        let fontSize: CGFloat
+        if compact {
+            fontSize = word.count <= 4 ? 52 : word.count <= 7 ? 40 : 30
+        } else {
+            fontSize = word.count <= 4 ? 64 : word.count <= 7 ? 48 : 36
+        }
         let font = UIFont.systemFont(ofSize: fontSize, weight: .bold)
 
         let alpha: CGFloat
@@ -109,9 +119,10 @@ enum DiscTextureGenerator {
         ]
 
         let textSize = (word as NSString).size(withAttributes: attributes)
+        let textY = compact ? rect.height * 0.57 : rect.height * 0.62
         let textRect = CGRect(
             x: (rect.width - textSize.width) / 2,
-            y: rect.height * 0.62,
+            y: textY,
             width: textSize.width,
             height: textSize.height
         )
