@@ -1,0 +1,160 @@
+import SwiftUI
+
+/// 初回起動時のオンボーディング画面。
+/// ゲームの世界観と遊び方を3ステップで伝え、
+/// Swift Student Challenge 審査員の「最初の3分」を最大限に活かす。
+struct OnboardingView: View {
+    @Binding var isPresented: Bool
+    @State private var currentPage = 0
+    @State private var titleScale: CGFloat = 0.5
+    @State private var titleOpacity: Double = 0
+    @State private var pageOpacity: Double = 0
+
+    private let pages: [OnboardingPage] = [
+        OnboardingPage(
+            icon: "sparkles",
+            title: "Semantic Tower",
+            subtitle: "言葉の意味で塔を積む",
+            description: "単語はAIの意味ベクトルによって\n2次元の「意味空間」に配置されます。\n同じカテゴリの単語は近くに落ちます。",
+            accentColor: STTheme.Colors.accentCyan
+        ),
+        OnboardingPage(
+            icon: "scalemass",
+            title: "バランスを保て",
+            subtitle: "重心が偏ると…",
+            description: "積まれた単語の意味的な重心に応じて\nボードが傾きます。\nバランスよく言葉を選びましょう！",
+            accentColor: STTheme.Colors.accentGold
+        ),
+        OnboardingPage(
+            icon: "gamecontroller",
+            title: "さあ、始めよう",
+            subtitle: "デモ or マニュアルモード",
+            description: "「Demo」モードでプリセット単語を体験するか、\n「Manual」モードで自由に単語を入力。\nタワーを高く積み上げましょう！",
+            accentColor: STTheme.Colors.accentPink
+        )
+    ]
+
+    var body: some View {
+        ZStack {
+            AnimatedBackground()
+
+            VStack(spacing: 0) {
+                Spacer()
+
+                pageContent
+                    .opacity(pageOpacity)
+
+                Spacer()
+
+                pageIndicator
+                    .padding(.bottom, 20)
+
+                navigationButton
+                    .padding(.bottom, 50)
+                    .padding(.horizontal, 40)
+            }
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.8, dampingFraction: 0.6)) {
+                titleScale = 1.0
+                titleOpacity = 1.0
+            }
+            withAnimation(.easeIn(duration: 0.5).delay(0.3)) {
+                pageOpacity = 1.0
+            }
+        }
+    }
+
+    private var pageContent: some View {
+        let page = pages[currentPage]
+        return VStack(spacing: 24) {
+            ZStack {
+                Circle()
+                    .fill(page.accentColor.opacity(0.15))
+                    .frame(width: 120, height: 120)
+                    .glow(page.accentColor, radius: 20)
+
+                Image(systemName: page.icon)
+                    .font(.system(size: 48, weight: .light))
+                    .foregroundColor(page.accentColor)
+                    .scaleEffect(titleScale)
+            }
+
+            VStack(spacing: 8) {
+                Text(page.title)
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .foregroundColor(STTheme.Colors.textPrimary)
+                    .opacity(titleOpacity)
+
+                Text(page.subtitle)
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .foregroundColor(page.accentColor)
+            }
+
+            Text(page.description)
+                .font(.system(size: 15, weight: .regular, design: .rounded))
+                .foregroundColor(STTheme.Colors.textSecondary)
+                .multilineTextAlignment(.center)
+                .lineSpacing(4)
+                .padding(.horizontal, 40)
+        }
+        .id(currentPage)
+        .transition(.asymmetric(
+            insertion: .move(edge: .trailing).combined(with: .opacity),
+            removal: .move(edge: .leading).combined(with: .opacity)
+        ))
+    }
+
+    private var pageIndicator: some View {
+        HStack(spacing: 10) {
+            ForEach(0..<pages.count, id: \.self) { index in
+                Capsule()
+                    .fill(index == currentPage
+                          ? pages[currentPage].accentColor
+                          : STTheme.Colors.textTertiary)
+                    .frame(width: index == currentPage ? 24 : 8, height: 8)
+                    .animation(.spring(response: 0.4), value: currentPage)
+            }
+        }
+    }
+
+    private var navigationButton: some View {
+        Button {
+            if currentPage < pages.count - 1 {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                    currentPage += 1
+                }
+            } else {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    isPresented = false
+                }
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Text(currentPage < pages.count - 1 ? "次へ" : "はじめる")
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+
+                Image(systemName: currentPage < pages.count - 1
+                      ? "arrow.right"
+                      : "play.fill")
+                    .font(.system(size: 14, weight: .semibold))
+            }
+            .foregroundColor(STTheme.Colors.cosmicDeep)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(
+                Capsule()
+                    .fill(pages[currentPage].accentColor)
+            )
+            .glow(pages[currentPage].accentColor, radius: 6)
+        }
+    }
+}
+
+private struct OnboardingPage {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let description: String
+    let accentColor: Color
+}
