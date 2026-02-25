@@ -74,7 +74,7 @@ private enum PhysicsConfig {
 /// タワーの土台を3Dで表現するシーン。
 /// セマンティック重心に応じてボードを傾ける。
 /// ドロップ系物理: kinematic ボード + dynamic ディスク、高摩擦・低反発でスタッキング安定化。
-final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
+final class GameScene3D: NSObject, @preconcurrency SCNPhysicsContactDelegate {
     let scene: SCNScene
     let cameraNode: SCNNode
     private var boardNode: SCNNode
@@ -485,7 +485,7 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
 
     // MARK: - SCNPhysicsContactDelegate
 
-    func physicsWorld(_ world: SCNPhysicsWorld, didBegin contact: SCNPhysicsContact) {
+    @MainActor func physicsWorld(_ world: SCNPhysicsWorld, didBegin contact: SCNPhysicsContact) {
         guard let nodeA = contact.nodeA as SCNNode?, let nodeB = contact.nodeB as SCNNode? else { return }
 
         let categoryA = nodeA.physicsBody?.categoryBitMask ?? 0
