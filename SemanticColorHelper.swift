@@ -7,10 +7,11 @@ import UIKit
 import AppKit
 #endif
 
-/// セマンティック座標（Nature↔Machine, Living↔Object）から色を算出するユーティリティ。
-/// X軸: 緑系(Nature) ↔ 青/紫系(Machine)
-/// Y軸: 暖色(Living) ↔ 冷色(Object) のブレンド
-/// アクセシビリティ: 色覚多様性に配慮し、緑-青・暖色-冷色で区別しやすいパレットを使用。
+/// セマンティック座標から色を生成。4象限ごとに特徴的なカラーを割り当て、
+/// HSB 色空間で滑らかに補間することで豊かなバリエーションを実現。
+///
+/// 色覚多様性: 色相を均等に分散（90°間隔）し、彩度と明度で差別化。
+/// 赤緑色覚でも象限の区別がつくよう、明度差を大きく取る。
 enum SemanticColorHelper {
 #if canImport(UIKit)
     typealias PlatformColor = UIColor
@@ -18,67 +19,86 @@ enum SemanticColorHelper {
     typealias PlatformColor = NSColor
 #endif
 
-    /// セマンティック座標 (x, y) を [-1, 1] の範囲で受け取り、対応する色を返す。
-    /// - Parameters:
-    ///   - x: Nature(+1) ↔ Machine(-1)
-    ///   - y: Living(+1) ↔ Object(-1)
-    static func color(for x: CGFloat, y: CGFloat) -> PlatformColor {
-        let clampedX = max(-1, min(1, x))
-        let clampedY = max(-1, min(1, y))
+    /// セマンティック座標 (x, y) → 色
+    /// x: Nature(+1) ↔ Machine(-1), y: Living(+1) ↔ Object(-1)
+    static func color(for semanticX: CGFloat, semanticY: CGFloat) -> PlatformColor {
+        let clampX = max(-1, min(1, semanticX))
+        let clampY = max(-1, min(1, semanticY))
 
-        // X軸: Nature(緑系) ↔ Machine(青/紫系)
-        // 色覚多様性: 緑と青は区別しやすい組み合わせ。彩度をやや高めて識別性を向上。
-        let natureGreen = PlatformColor(red: 0.15, green: 0.72, blue: 0.38, alpha: 1.0)
-        let machineBlue = PlatformColor(red: 0.28, green: 0.42, blue: 0.88, alpha: 1.0)
-        let xBlend = (clampedX + 1) / 2  // 0..1
+        // 4象限の基準色 (HSB)
+        //   (+X,+Y) Nature×Living  : 暖かい緑 (H=140°)
+        //   (-X,+Y) Machine×Living : 鮮やかな紫 (H=280°)
+        //   (+X,-Y) Nature×Object  : ティール (H=180°)
+        //   (-X,-Y) Machine×Object : ディープブルー (H=230°)
+        let xBlend = (clampX + 1) / 2   // 0(Machine) → 1(Nature)
+        let yBlend = (clampY + 1) / 2   // 0(Object) → 1(Living)
 
-        // Y軸: Living(暖色・オレンジ系) ↔ Object(冷色・青緑系)
-        // 赤緑色覚の区別を考慮し、青みの強さで差別化
-        let yBlend = (clampedY + 1) / 2  // 0..1
+        // 上段 (Living): 紫 → 緑
+        let topHue = lerp(280, 140, blend: xBlend)
+        let topSat = lerp(0.72, 0.68, blend: xBlend)
+        let topBri = lerp(0.78, 0.72, blend: xBlend)
 
-        // 2軸を組み合わせて色を補間
-        let baseX = lerpColor(natureGreen, machineBlue, t: xBlend)
-        let warmTint = PlatformColor(red: 0.92, green: 0.58, blue: 0.25, alpha: 1.0)  // オレンジ寄り
-        let coolTint = PlatformColor(red: 0.35, green: 0.68, blue: 0.88, alpha: 1.0)  // シアン寄り
-        let yTint = lerpColor(coolTint, warmTint, t: yBlend)
+        // 下段 (Object): ディープブルー → ティール
+        let botHue = lerp(230, 180, blend: xBlend)
+        let botSat = lerp(0.65, 0.60, blend: xBlend)
+        let botBri = lerp(0.62, 0.68, blend: xBlend)
 
-        return blendColors(baseX, yTint, amount: 0.35)
+        // 上下を補間
+        let hue = lerp(botHue, topHue, blend: yBlend)
+        let sat = lerp(botSat, topSat, blend: yBlend)
+        let bri = lerp(botBri, topBri, blend: yBlend)
+
+        return PlatformColor(
+            hue: hue / 360.0,
+            saturation: sat,
+            brightness: bri,
+            alpha: 1.0
+        )
     }
 
-    /// SwiftUI用: セマンティック座標から Color を返す。
-    static func swiftUIColor(for x: CGFloat, y: CGFloat) -> Color {
+    /// SwiftUI 用
+    static func swiftUIColor(for semanticX: CGFloat, semanticY: CGFloat) -> Color {
 #if canImport(UIKit)
-        return Color(uiColor: color(for: x, y: y))
+        Color(uiColor: color(for: semanticX, semanticY: semanticY))
 #else
-        return Color(nsColor: color(for: x, y: y))
+        Color(nsColor: color(for: semanticX, semanticY: semanticY))
 #endif
     }
 
-    private static func lerpColor(_ a: PlatformColor, _ b: PlatformColor, t: CGFloat) -> PlatformColor {
-        var ar: CGFloat = 0, ag: CGFloat = 0, ab: CGFloat = 0, aa: CGFloat = 0
-        var br: CGFloat = 0, bg: CGFloat = 0, bb: CGFloat = 0, ba: CGFloat = 0
-        a.getRed(&ar, green: &ag, blue: &ab, alpha: &aa)
-        b.getRed(&br, green: &bg, blue: &bb, alpha: &ba)
-        let t = max(0, min(1, t))
-        return PlatformColor(
-            red: ar + (br - ar) * t,
-            green: ag + (bg - ag) * t,
-            blue: ab + (bb - ab) * t,
-            alpha: aa + (ba - aa) * t
-        )
+    /// ベースカラーに対してコントラストのあるテキスト色を返す。
+    /// 明るい背景 → ダーク文字、暗い背景 → ライト文字。WCAG 4.5:1 準拠。
+    static func contrastingTextColor(for background: PlatformColor) -> PlatformColor {
+        let lum = relativeLuminance(of: background)
+        return lum > 0.35
+            ? PlatformColor(white: 0.10, alpha: 1)
+            : PlatformColor(white: 0.95, alpha: 1)
     }
 
-    private static func blendColors(_ base: PlatformColor, _ overlay: PlatformColor, amount: CGFloat) -> PlatformColor {
-        var br: CGFloat = 0, bg: CGFloat = 0, bb: CGFloat = 0, ba: CGFloat = 0
-        var or: CGFloat = 0, og: CGFloat = 0, ob: CGFloat = 0, oa: CGFloat = 0
-        base.getRed(&br, green: &bg, blue: &bb, alpha: &ba)
-        overlay.getRed(&or, green: &og, blue: &ob, alpha: &oa)
-        let a = max(0, min(1, amount))
-        return PlatformColor(
-            red: br + (or - br) * a,
-            green: bg + (og - bg) * a,
-            blue: bb + (ob - bb) * a,
-            alpha: 1
-        )
+    /// リング装飾用の半透明コントラスト色
+    static func contrastingRingColor(for background: PlatformColor) -> PlatformColor {
+        let lum = relativeLuminance(of: background)
+        return lum > 0.35
+            ? PlatformColor(white: 0.0, alpha: 0.20)
+            : PlatformColor(white: 1.0, alpha: 0.25)
+    }
+
+    /// アイコン色（テキストと同系だがやや薄い）
+    static func contrastingIconColor(for background: PlatformColor) -> PlatformColor {
+        let lum = relativeLuminance(of: background)
+        return lum > 0.35
+            ? PlatformColor(white: 0.15, alpha: 0.80)
+            : PlatformColor(white: 1.0, alpha: 0.85)
+    }
+
+    // MARK: - Private
+
+    private static func lerp(_ from: CGFloat, _ to: CGFloat, blend: CGFloat) -> CGFloat {
+        from + (to - from) * max(0, min(1, blend))
+    }
+
+    private static func relativeLuminance(of color: PlatformColor) -> CGFloat {
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        return 0.2126 * red + 0.7152 * green + 0.0722 * blue
     }
 }

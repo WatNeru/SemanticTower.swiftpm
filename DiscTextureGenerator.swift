@@ -1,7 +1,7 @@
 import UIKit
 
 /// ディスク天面用のテクスチャ画像をプログラム生成。
-/// 外部画像アセット不要。SF Symbols と Emoji は OS 内蔵。
+/// テキスト・アイコン・リングの色はベースカラーの明るさに応じて動的に決定。
 enum DiscTextureGenerator {
 
     static func generate(
@@ -12,6 +12,10 @@ enum DiscTextureGenerator {
         let size = CGSize(width: 256, height: 256)
         let renderer = UIGraphicsImageRenderer(size: size)
 
+        let textColor = SemanticColorHelper.contrastingTextColor(for: baseColor)
+        let ringColor = SemanticColorHelper.contrastingRingColor(for: baseColor)
+        let iconColor = SemanticColorHelper.contrastingIconColor(for: baseColor)
+
         return renderer.image { ctx in
             let cgCtx = ctx.cgContext
             let rect = CGRect(origin: .zero, size: size)
@@ -21,13 +25,40 @@ enum DiscTextureGenerator {
             cgCtx.addEllipse(in: rect)
             cgCtx.clip()
 
-            cgCtx.setFillColor(baseColor.cgColor)
-            cgCtx.fill(rect)
+            drawBackground(cgCtx: cgCtx, rect: rect, baseColor: baseColor)
+            drawRing(cgCtx: cgCtx, center: center, radius: radius,
+                     ringColor: ringColor, diskShape: diskShape)
+            drawIcon(word: word, in: rect, color: iconColor, diskShape: diskShape)
+            drawWord(word, in: rect, color: textColor, diskShape: diskShape)
+        }
+    }
 
-            drawRing(cgCtx: cgCtx, center: center, radius: radius, diskShape: diskShape)
+    // MARK: - Background with subtle gradient
 
-            drawIcon(word: word, in: rect, diskShape: diskShape)
-            drawWord(word, in: rect, diskShape: diskShape)
+    private static func drawBackground(
+        cgCtx: CGContext,
+        rect: CGRect,
+        baseColor: UIColor
+    ) {
+        var hue: CGFloat = 0, sat: CGFloat = 0, bri: CGFloat = 0, alpha: CGFloat = 0
+        baseColor.getHue(&hue, saturation: &sat, brightness: &bri, alpha: &alpha)
+
+        let lighterColor = UIColor(hue: hue, saturation: max(0, sat - 0.08),
+                                   brightness: min(1, bri + 0.12), alpha: 1)
+        let darkerColor = UIColor(hue: hue, saturation: min(1, sat + 0.05),
+                                  brightness: max(0, bri - 0.08), alpha: 1)
+
+        let colors = [lighterColor.cgColor, darkerColor.cgColor] as CFArray
+        if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                     colors: colors, locations: [0.0, 1.0]) {
+            cgCtx.drawRadialGradient(
+                gradient,
+                startCenter: CGPoint(x: rect.midX * 0.7, y: rect.midY * 0.6),
+                startRadius: 0,
+                endCenter: CGPoint(x: rect.midX, y: rect.midY),
+                endRadius: rect.width * 0.6,
+                options: [.drawsAfterEndLocation]
+            )
         }
     }
 
@@ -37,51 +68,47 @@ enum DiscTextureGenerator {
         cgCtx: CGContext,
         center: CGPoint,
         radius: CGFloat,
+        ringColor: UIColor,
         diskShape: DiskShape
     ) {
         let ringWidth: CGFloat
-        let ringAlpha: CGFloat
-
         switch diskShape {
-        case .perfect:
-            ringWidth = 8
-            ringAlpha = 0.25
-        case .nice:
-            ringWidth = 6
-            ringAlpha = 0.15
-        case .miss:
-            ringWidth = 4
-            ringAlpha = 0.10
+        case .perfect: ringWidth = 8
+        case .nice:    ringWidth = 6
+        case .miss:    ringWidth = 4
         }
 
-        cgCtx.setStrokeColor(UIColor.white.withAlphaComponent(ringAlpha).cgColor)
+        cgCtx.setStrokeColor(ringColor.cgColor)
         cgCtx.setLineWidth(ringWidth)
-        let innerRect = CGRect(
+        let outerRing = CGRect(
             x: center.x - radius + ringWidth / 2,
             y: center.y - radius + ringWidth / 2,
             width: (radius - ringWidth / 2) * 2,
             height: (radius - ringWidth / 2) * 2
         )
-        cgCtx.strokeEllipse(in: innerRect)
+        cgCtx.strokeEllipse(in: outerRing)
 
         if diskShape == .perfect {
-            let secondRing = innerRect.insetBy(dx: 12, dy: 12)
+            let innerRing = outerRing.insetBy(dx: 12, dy: 12)
             cgCtx.setLineWidth(2)
-            cgCtx.setStrokeColor(UIColor.white.withAlphaComponent(0.15).cgColor)
-            cgCtx.strokeEllipse(in: secondRing)
+            cgCtx.strokeEllipse(in: innerRing)
         }
     }
 
-    // MARK: - Icon (SF Symbol or Emoji)
+    // MARK: - Icon
 
-    private static func drawIcon(word: String, in rect: CGRect, diskShape: DiskShape) {
-        let iconAlpha: CGFloat = diskShape == .miss ? 0.5 : 0.85
+    private static func drawIcon(
+        word: String,
+        in rect: CGRect,
+        color: UIColor,
+        diskShape: DiskShape
+    ) {
+        let iconAlpha: CGFloat = diskShape == .miss ? 0.5 : 1.0
         let iconSize: CGFloat = 64
+        let tintedColor = color.withAlphaComponent(iconAlpha)
 
         guard let iconImage = WordIconMapper.renderIcon(
-            for: word,
-            size: iconSize,
-            color: UIColor.white.withAlphaComponent(iconAlpha)
+            for: word, size: iconSize, color: tintedColor
         ) else { return }
 
         let iconRect = CGRect(
@@ -95,18 +122,20 @@ enum DiscTextureGenerator {
 
     // MARK: - Word text
 
-    private static func drawWord(_ word: String, in rect: CGRect, diskShape: DiskShape) {
-        let maxFontSize: CGFloat = word.count <= 4 ? 36 : word.count <= 7 ? 28 : 22
-        let font = UIFont.systemFont(ofSize: maxFontSize, weight: .bold)
-        let textColor: UIColor
+    private static func drawWord(
+        _ word: String,
+        in rect: CGRect,
+        color: UIColor,
+        diskShape: DiskShape
+    ) {
+        let fontSize: CGFloat = word.count <= 4 ? 36 : word.count <= 7 ? 28 : 22
+        let font = UIFont.systemFont(ofSize: fontSize, weight: .bold)
 
+        let alpha: CGFloat
         switch diskShape {
-        case .perfect:
-            textColor = .white
-        case .nice:
-            textColor = UIColor.white.withAlphaComponent(0.85)
-        case .miss:
-            textColor = UIColor.white.withAlphaComponent(0.65)
+        case .perfect: alpha = 1.0
+        case .nice:    alpha = 0.85
+        case .miss:    alpha = 0.60
         }
 
         let paragraphStyle = NSMutableParagraphStyle()
@@ -114,7 +143,7 @@ enum DiscTextureGenerator {
 
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: textColor,
+            .foregroundColor: color.withAlphaComponent(alpha),
             .paragraphStyle: paragraphStyle
         ]
 

@@ -109,7 +109,7 @@ struct CompassOverlayView: View {
             let dotX = mapCenterX + scaled.x * mapScale
             let dotY = mapCenterY - scaled.y * mapScale
             Circle()
-                .fill(SemanticColorHelper.swiftUIColor(for: item.position.x, y: item.position.y))
+                .fill(SemanticColorHelper.swiftUIColor(for: item.position.x, semanticY: item.position.y))
                 .frame(width: 5, height: 5)
                 .position(x: dotX, y: dotY)
         }
@@ -171,7 +171,7 @@ struct ExpandedMapView: View {
                         )
                         VStack(spacing: 2) {
                             Circle()
-                                .fill(SemanticColorHelper.swiftUIColor(for: item.position.x, y: item.position.y))
+                                .fill(SemanticColorHelper.swiftUIColor(for: item.position.x, semanticY: item.position.y))
                                 .frame(width: 12, height: 12)
                                 .shadow(color: SemanticColorHelper.swiftUIColor(
                                     for: item.position.x, y: item.position.y

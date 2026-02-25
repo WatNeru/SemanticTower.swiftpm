@@ -151,7 +151,7 @@ final class SemanticGameController: ObservableObject {
         let massStr = String(format: "%.2f", baseMass)
         print("[Drop] word=\"\(word)\", semantic=(x=\(xStr), y=\(yStr)), mass=\(massStr), shape=\(diskShape)")
 
-        let diskColor = SemanticColorHelper.color(for: semanticPos.x, y: semanticPos.y)
+        let diskColor = SemanticColorHelper.color(for: semanticPos.x, semanticY: semanticPos.y)
         scene3D.addDisc(
             atSemanticPosition: semanticPos,
             color: diskColor,

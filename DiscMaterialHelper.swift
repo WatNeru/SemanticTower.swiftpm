@@ -3,45 +3,78 @@ import SceneKit
 import UIKit
 #endif
 
-/// SCNCylinder にマテリアルを割り当てるヘルパー。
-/// 天面にテクスチャ、側面・底面にベースカラーを適用。
+/// SCNCylinder に天面テクスチャ + 側面/底面カラーを割り当て。
+/// diskShape で質感（光沢・粗さ・金属感）が変化する。
 enum DiscMaterialHelper {
-    /// SCNCylinder のマテリアル配列: [側面, 天面, 底面]
     static func apply(
         to geometry: SCNCylinder,
         baseColor: PlatformColor,
         diskShape: DiskShape,
         topTexture: UIImage
     ) {
-        let sideMat = makeMaterial(color: baseColor, diskShape: diskShape)
-        let topMat = makeMaterial(color: baseColor, diskShape: diskShape)
-        topMat.diffuse.contents = topTexture
-        let bottomMat = makeMaterial(color: baseColor, diskShape: diskShape)
+        let sideMat = makeSideMaterial(color: baseColor, diskShape: diskShape)
+        let topMat = makeTopMaterial(texture: topTexture, diskShape: diskShape)
+        let bottomMat = makeSideMaterial(color: baseColor, diskShape: diskShape)
 
         geometry.materials = [sideMat, topMat, bottomMat]
     }
 
-    private static func makeMaterial(
+    private static func makeSideMaterial(
         color: PlatformColor,
         diskShape: DiskShape
     ) -> SCNMaterial {
         let mat = SCNMaterial()
         mat.lightingModel = .physicallyBased
-        mat.diffuse.contents = color
+        mat.isDoubleSided = false
+
+        var hue: CGFloat = 0, sat: CGFloat = 0, bri: CGFloat = 0, alpha: CGFloat = 0
+        color.getHue(&hue, saturation: &sat, brightness: &bri, alpha: &alpha)
+        let sideColor = PlatformColor(
+            hue: hue,
+            saturation: min(1, sat + 0.05),
+            brightness: max(0, bri - 0.10),
+            alpha: 1
+        )
+        mat.diffuse.contents = sideColor
+
+        switch diskShape {
+        case .perfect:
+            mat.specular.contents = PlatformColor(white: 0.9, alpha: 1)
+            mat.roughness.contents = 0.06
+            mat.metalness.contents = 0.08
+        case .nice:
+            mat.specular.contents = PlatformColor(white: 0.5, alpha: 1)
+            mat.roughness.contents = 0.30
+            mat.metalness.contents = 0.03
+        case .miss:
+            mat.specular.contents = PlatformColor(white: 0.15, alpha: 1)
+            mat.roughness.contents = 0.65
+            mat.metalness.contents = 0
+        }
+        return mat
+    }
+
+    private static func makeTopMaterial(
+        texture: UIImage,
+        diskShape: DiskShape
+    ) -> SCNMaterial {
+        let mat = SCNMaterial()
+        mat.lightingModel = .physicallyBased
+        mat.diffuse.contents = texture
         mat.isDoubleSided = false
 
         switch diskShape {
         case .perfect:
-            mat.specular.contents = PlatformColor(white: 0.8, alpha: 1)
-            mat.roughness.contents = 0.08
+            mat.specular.contents = PlatformColor(white: 0.7, alpha: 1)
+            mat.roughness.contents = 0.10
             mat.metalness.contents = 0.05
         case .nice:
-            mat.specular.contents = PlatformColor(white: 0.5, alpha: 1)
-            mat.roughness.contents = 0.25
+            mat.specular.contents = PlatformColor(white: 0.4, alpha: 1)
+            mat.roughness.contents = 0.35
             mat.metalness.contents = 0.02
         case .miss:
-            mat.specular.contents = PlatformColor(white: 0.2, alpha: 1)
-            mat.roughness.contents = 0.6
+            mat.specular.contents = PlatformColor(white: 0.1, alpha: 1)
+            mat.roughness.contents = 0.70
             mat.metalness.contents = 0
         }
         return mat
