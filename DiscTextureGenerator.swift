@@ -20,9 +20,7 @@ enum DiscTextureGenerator {
             let cgCtx = ctx.cgContext
             let rect = CGRect(origin: .zero, size: size)
 
-            let clipPath = shapeType.texturePath(size: size.width)
-            clipPath.addClip()
-
+            // 常に正方形全体を描画。3D側の SCNShape が形をクリップする。
             drawBackground(cgCtx: cgCtx, rect: rect, baseColor: baseColor)
             drawIcon(word: word, in: rect, color: iconColor, diskShape: diskShape)
             drawWord(word, in: rect, color: textColor, diskShape: diskShape)

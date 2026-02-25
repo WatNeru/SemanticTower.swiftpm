@@ -680,6 +680,186 @@ enum WordDatabase {
         ]
         add(adjectives, shape: .star)
 
+        // =====================================================================
+        // SPORTS & ACTIVITIES (rounded) — ~50 words
+        // =====================================================================
+        add([
+            ("soccer", .emoji("⚽")), ("football", .emoji("🏈")),
+            ("basketball", .emoji("🏀")), ("baseball", .emoji("⚾")),
+            ("tennis", .emoji("🎾")), ("volleyball", .emoji("🏐")),
+            ("golf", .emoji("⛳")), ("bowling", .emoji("🎳")),
+            ("hockey", .emoji("🏒")), ("cricket", .emoji("🏏")),
+            ("rugby", .emoji("🏉")), ("boxing", .emoji("🥊")),
+            ("wrestling", .emoji("🤼")), ("fencing", .emoji("🤺")),
+            ("surfing", .emoji("🏄")), ("skiing", .emoji("⛷️")),
+            ("skating", .emoji("⛸️")), ("snowboarding", .emoji("🏂")),
+            ("cycling", .sfSymbol("bicycle")), ("rowing", .emoji("🚣")),
+            ("archery", .emoji("🏹")), ("fishing", .emoji("🎣")),
+            ("hunting", .emoji("🏹")), ("camping", .emoji("🏕️")),
+            ("hiking", .sfSymbol("figure.hiking")),
+            ("climbing", .emoji("🧗")), ("yoga", .emoji("🧘")),
+            ("martial", .emoji("🥋")), ("karate", .emoji("🥋")),
+            ("judo", .emoji("🥋")), ("medal", .emoji("🏅")),
+            ("trophy", .sfSymbol("trophy.fill")),
+            ("race", .sfSymbol("flag.checkered")),
+            ("match", .emoji("🏟️")), ("score", .sfSymbol("number")),
+            ("goal", .emoji("🥅")), ("team", .sfSymbol("person.3.fill")),
+            ("coach", .emoji("📋")), ("athlete", .sfSymbol("figure.run")),
+            ("champion", .sfSymbol("trophy.fill")),
+            ("sport", .emoji("🏆")), ("gym", .emoji("🏋️")),
+            ("pool", .emoji("🏊")), ("stadium", .emoji("🏟️")),
+            ("playground", .emoji("🛝")), ("swing", .emoji("🛝")),
+            ("slide", .emoji("🛝")), ("puzzle", .emoji("🧩")),
+            ("chess", .emoji("♟️")), ("dice", .sfSymbol("dice.fill"))
+        ], shape: .rounded)
+
+        // =====================================================================
+        // TOOLS & WORK (gear) — ~30 words
+        // =====================================================================
+        add([
+            ("wrench", .sfSymbol("wrench.fill")),
+            ("saw", .emoji("🪚")), ("axe", .emoji("🪓")),
+            ("drill", .emoji("🔩")), ("nail", .emoji("🔩")),
+            ("screw", .emoji("🔩")), ("bolt", .sfSymbol("bolt.fill")),
+            ("tape", .emoji("📏")), ("ruler", .sfSymbol("ruler.fill")),
+            ("paintbrush", .sfSymbol("paintbrush.fill")),
+            ("shovel", .emoji("⛏️")), ("rake", .emoji("🧹")),
+            ("broom", .emoji("🧹")), ("mop", .emoji("🧹")),
+            ("hose", .emoji("🪠")), ("plunger", .emoji("🪠")),
+            ("toolbox", .sfSymbol("wrench.and.screwdriver.fill")),
+            ("level", .emoji("📏")), ("clamp", .emoji("🗜️")),
+            ("glue", .emoji("🧴")), ("safety", .sfSymbol("shield.fill")),
+            ("helmet", .emoji("⛑️")), ("vest", .emoji("🦺")),
+            ("goggles", .emoji("🥽")), ("mask", .emoji("😷"))
+        ], shape: .gear)
+
+        // =====================================================================
+        // CLOTHING & ACCESSORIES (diamond) — ~30 words
+        // =====================================================================
+        add([
+            ("boot", .emoji("🥾")), ("sandal", .emoji("🩴")),
+            ("sneaker", .emoji("👟")), ("heel", .emoji("👠")),
+            ("sock", .emoji("🧦")), ("glove", .emoji("🧤")),
+            ("scarf", .emoji("🧣")), ("tie", .emoji("👔")),
+            ("belt", .emoji("🪢")), ("watch", .emoji("⌚")),
+            ("necklace", .emoji("📿")), ("earring", .emoji("💍")),
+            ("bracelet", .emoji("📿")), ("purse", .emoji("👛")),
+            ("wallet", .emoji("👛")), ("backpack", .emoji("🎒")),
+            ("suitcase", .emoji("🧳")), ("sunglasses", .emoji("🕶️")),
+            ("cap", .emoji("🧢")), ("crown", .sfSymbol("crown.fill")),
+            ("uniform", .emoji("👔")), ("costume", .emoji("🎭")),
+            ("pajamas", .emoji("🛏️")), ("swimsuit", .emoji("👙")),
+            ("jacket", .emoji("🧥")), ("sweater", .emoji("🧶")),
+            ("jeans", .emoji("👖")), ("skirt", .emoji("👗"))
+        ], shape: .diamond)
+
+        // =====================================================================
+        // MUSIC & ART (flower) — ~25 words
+        // =====================================================================
+        add([
+            ("flute", .emoji("🪈")), ("harp", .emoji("🪕")),
+            ("banjo", .emoji("🪕")), ("accordion", .emoji("🪗")),
+            ("saxophone", .emoji("🎷")), ("microphone", .sfSymbol("mic.fill")),
+            ("concert", .emoji("🎶")), ("orchestra", .emoji("🎻")),
+            ("band", .emoji("🎸")), ("melody", .sfSymbol("music.note")),
+            ("rhythm", .sfSymbol("waveform")),
+            ("harmony", .sfSymbol("music.note.list")),
+            ("painting", .sfSymbol("paintpalette.fill")),
+            ("sculpture", .emoji("🗿")), ("drawing", .sfSymbol("paintbrush.fill")),
+            ("photograph", .sfSymbol("camera.fill")),
+            ("movie", .sfSymbol("film.fill")), ("theater", .emoji("🎭")),
+            ("ballet", .emoji("🩰")), ("opera", .emoji("🎭")),
+            ("poetry", .sfSymbol("book.fill")), ("novel", .sfSymbol("book.fill")),
+            ("drama", .emoji("🎭")), ("comedy", .emoji("😂")),
+            ("circus", .emoji("🎪")), ("magic", .sfSymbol("wand.and.stars"))
+        ], shape: .flower)
+
+        // =====================================================================
+        // SCIENCE & TECHNOLOGY (gear) — ~25 words
+        // =====================================================================
+        add([
+            ("atom", .sfSymbol("atom")),
+            ("molecule", .emoji("🧬")), ("DNA", .emoji("🧬")),
+            ("cell", .emoji("🔬")), ("virus", .emoji("🦠")),
+            ("bacteria", .emoji("🦠")), ("fossil", .emoji("🦴")),
+            ("dinosaur", .emoji("🦕")), ("skeleton", .emoji("💀")),
+            ("planet", .emoji("🪐")), ("galaxy", .emoji("🌌")),
+            ("comet", .emoji("☄️")), ("meteor", .emoji("☄️")),
+            ("orbit", .emoji("🛸")), ("gravity", .sfSymbol("arrow.down")),
+            ("experiment", .emoji("🧪")), ("laboratory", .emoji("🔬")),
+            ("formula", .sfSymbol("function")),
+            ("equation", .sfSymbol("equal.circle.fill")),
+            ("data", .sfSymbol("chart.bar.fill")),
+            ("code", .sfSymbol("chevron.left.forwardslash.chevron.right")),
+            ("program", .sfSymbol("terminal.fill")),
+            ("internet", .sfSymbol("globe")),
+            ("website", .sfSymbol("globe")),
+            ("software", .sfSymbol("app.fill")),
+            ("hardware", .sfSymbol("cpu.fill"))
+        ], shape: .gear)
+
+        // =====================================================================
+        // TIME & CALENDAR (star) — ~20 words
+        // =====================================================================
+        add([
+            ("second", .sfSymbol("clock.fill")),
+            ("minute", .sfSymbol("clock.fill")),
+            ("hour", .sfSymbol("clock.fill")),
+            ("week", .sfSymbol("calendar")),
+            ("month", .sfSymbol("calendar")),
+            ("year", .sfSymbol("calendar")),
+            ("century", .sfSymbol("clock.fill")),
+            ("season", .sfSymbol("leaf.fill")),
+            ("summer", .sfSymbol("sun.max.fill")),
+            ("winter", .sfSymbol("snowflake")),
+            ("autumn", .sfSymbol("leaf.fill")),
+            ("fall", .sfSymbol("leaf.fill")),
+            ("weekend", .sfSymbol("calendar")),
+            ("holiday", .emoji("🎉")),
+            ("vacation", .emoji("🏖️")),
+            ("monday", .sfSymbol("calendar")),
+            ("friday", .sfSymbol("calendar")),
+            ("sunday", .sfSymbol("calendar"))
+        ], shape: .star)
+
+        // =====================================================================
+        // EMOTIONS EXTRAS (heart) — ~20 words
+        // =====================================================================
+        add([
+            ("laugh", .emoji("😂")), ("cry", .emoji("😢")),
+            ("smile", .sfSymbol("face.smiling")),
+            ("frown", .emoji("☹️")), ("wink", .emoji("😉")),
+            ("blush", .emoji("😊")), ("yawn", .emoji("🥱")),
+            ("scream", .emoji("😱")), ("shiver", .emoji("🥶")),
+            ("sweat", .emoji("😰")), ("nervous", .emoji("😬")),
+            ("relaxed", .emoji("😌")), ("grateful", .sfSymbol("heart.fill")),
+            ("anxious", .emoji("😰")), ("depressed", .emoji("😞")),
+            ("cheerful", .emoji("😄")), ("grumpy", .emoji("😠")),
+            ("nostalgic", .emoji("🥺")), ("passionate", .sfSymbol("flame.fill")),
+            ("peaceful", .sfSymbol("peacesign"))
+        ], shape: .heart)
+
+        // =====================================================================
+        // MORE ANIMALS (hexagon) — ~30 words
+        // =====================================================================
+        add([
+            ("dragon", .emoji("🐉")), ("unicorn", .emoji("🦄")),
+            ("llama", .emoji("🦙")), ("alpaca", .emoji("🦙")),
+            ("bison", .emoji("🦬")), ("mammoth", .emoji("🦣")),
+            ("dodo", .emoji("🦤")), ("eagle", .emoji("🦅")),
+            ("hawk", .emoji("🦅")), ("falcon", .emoji("🦅")),
+            ("crow", .emoji("🐦‍⬛")), ("pigeon", .emoji("🐦")),
+            ("stork", .emoji("🦩")), ("pelican", .emoji("🦩")),
+            ("whale", .emoji("🐋")), ("starfish", .emoji("⭐")),
+            ("coral", .emoji("🪸")), ("clam", .emoji("🐚")),
+            ("shell", .emoji("🐚")), ("caterpillar", .emoji("🐛")),
+            ("cricket", .emoji("🦗")), ("scorpion", .emoji("🦂")),
+            ("centipede", .emoji("🐛")), ("lizard", .emoji("🦎")),
+            ("crocodile", .emoji("🐊")), ("alligator", .emoji("🐊")),
+            ("chameleon", .emoji("🦎")), ("iguana", .emoji("🦎")),
+            ("salamander", .emoji("🦎")), ("toad", .emoji("🐸"))
+        ], shape: .hexagon)
+
         return dict
     }()
     // swiftlint:enable function_body_length
