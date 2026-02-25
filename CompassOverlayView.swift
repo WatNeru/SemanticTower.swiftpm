@@ -38,7 +38,7 @@ struct CompassOverlayView: View {
         .buttonStyle(.plain)
         .sheet(isPresented: $isExpanded) {
             ExpandedMapView(controller: controller)
-                .presentationDetents([.fraction(0.55), .large])
+                .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
         }
         .accessibilityLabel("Semantic map. Tap to expand and see placed words.")

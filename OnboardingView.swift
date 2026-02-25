@@ -14,22 +14,22 @@ struct OnboardingView: View {
         OnboardingPage(
             icon: "sparkles",
             title: "Semantic Tower",
-            subtitle: "言葉の意味で塔を積む",
-            description: "単語はAIの意味ベクトルによって\n2次元の「意味空間」に配置されます。\n同じカテゴリの単語は近くに落ちます。",
+            subtitle: "Stack words by meaning",
+            description: "Words are placed on a 2D semantic space\nusing AI word embeddings.\nSimilar words land near each other.",
             accentColor: STTheme.Colors.accentCyan
         ),
         OnboardingPage(
             icon: "scalemass",
-            title: "バランスを保て",
-            subtitle: "重心が偏ると…",
-            description: "積まれた単語の意味的な重心に応じて\nボードが傾きます。\nバランスよく言葉を選びましょう！",
+            title: "Keep It Balanced",
+            subtitle: "The board tilts with meaning",
+            description: "The board tilts based on the semantic\ncenter of mass of stacked words.\nChoose wisely to stay balanced!",
             accentColor: STTheme.Colors.accentGold
         ),
         OnboardingPage(
             icon: "gamecontroller",
-            title: "さあ、始めよう",
-            subtitle: "デモ or マニュアルモード",
-            description: "「Demo」モードでプリセット単語を体験するか、\n「Manual」モードで自由に単語を入力。\nタワーを高く積み上げましょう！",
+            title: "Let's Play",
+            subtitle: "Demo or Manual mode",
+            description: "Try Demo mode with preset words, or\nswitch to Manual to type or draw any word.\nBuild the tallest tower you can!",
             accentColor: STTheme.Colors.accentPink
         )
     ]

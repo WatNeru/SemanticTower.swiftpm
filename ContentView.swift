@@ -282,45 +282,10 @@ private struct GameContentView: View {
     }
 
     private var handwritingInputArea: some View {
-        VStack(spacing: 8) {
-            HandwritingCanvasView(
-                drawing: $controller.handwritingDrawing,
-                canvasSize: CGSize(width: 340, height: 80)
-            )
-            .frame(height: 80)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.ultraThinMaterial)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .disabled(controller.isDemoMode)
-
-            if let rec = controller.lastRecognitionResult, !rec.text.isEmpty {
-                RecognizedTextFeedbackView(result: rec)
-                    .font(.subheadline.monospaced())
-            }
-
-            if let err = controller.recognitionError {
-                Text(err)
-                    .font(.caption2)
-                    .foregroundColor(STTheme.Colors.missRed)
-            }
-
-            HStack(spacing: 10) {
-                Button {
-                    controller.clearHandwriting()
-                } label: {
-                    Image(systemName: "eraser")
-                        .font(.body.weight(.medium))
-                        .foregroundColor(STTheme.Colors.textSecondary)
-                        .padding(8)
-                        .glassCard(cornerRadius: 10, opacity: 0.10)
-                }
-                .disabled(controller.isDemoMode)
-
-                actionButtons
-            }
-        }
+        HandwritingInputPanel(
+            controller: controller,
+            onDrop: { performDrop() }
+        )
     }
 
     private var actionButtons: some View {
