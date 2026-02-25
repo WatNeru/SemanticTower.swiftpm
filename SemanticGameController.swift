@@ -10,7 +10,7 @@ final class SemanticGameController: ObservableObject {
 
     let scene3D: GameScene3D
     private let manager: SemanticEmbeddingManager
-    private let demoWords: [String] = [
+    let demoWords: [String] = [
         "dog", "cat", "lion",
         "tree", "river", "forest",
         "car", "robot", "computer",
@@ -18,6 +18,12 @@ final class SemanticGameController: ObservableObject {
         "happy", "sad", "freedom"
     ]
     private var demoIndex: Int = 0
+
+    /// 次にドロップされるデモ単語（UI のプレビュー表示用）。
+    var nextDemoWord: String {
+        guard !demoWords.isEmpty else { return "" }
+        return demoWords[demoIndex % demoWords.count]
+    }
 
     init() {
         scene3D = GameScene3D()

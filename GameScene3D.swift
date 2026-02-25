@@ -29,7 +29,12 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
     let cameraNode: SCNNode
     private var boardNode: SCNNode
     /// 傾き計算用にスムージングした重心（見かけ上の重心）。実際の重心にゆっくり追従させる。
-    private var smoothedCenterOfMass: CGPoint = .zero
+    private(set) var smoothedCenterOfMass: CGPoint = .zero
+
+    /// UI から参照できるプロパティ。
+    var currentCenterOfMass: CGPoint { smoothedCenterOfMass }
+    var activeDiscCount: Int { discs.filter { $0.isOnBoard }.count }
+
     private struct SemanticDisc {
         let node: SCNNode
         var isOnBoard: Bool
