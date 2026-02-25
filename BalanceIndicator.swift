@@ -79,10 +79,10 @@ struct BalanceIndicator: View {
                 .foregroundColor(STTheme.Colors.perfectBlue)
             Text("M").position(x: 10, y: indicatorSize / 2)
                 .foregroundColor(STTheme.Colors.nebulaPurple)
-            Text("L").position(x: indicatorSize / 2, y: 10)
-                .foregroundColor(STTheme.Colors.accentGold)
-            Text("O").position(x: indicatorSize / 2, y: indicatorSize - 10)
+            Text("O").position(x: indicatorSize / 2, y: 10)
                 .foregroundColor(STTheme.Colors.accentCyan)
+            Text("L").position(x: indicatorSize / 2, y: indicatorSize - 10)
+                .foregroundColor(STTheme.Colors.accentGold)
         }
         .font(.system(size: 7, weight: .bold, design: .monospaced))
     }
@@ -93,7 +93,7 @@ struct BalanceIndicator: View {
         let clampedY = max(-1, min(1, centerOfMass.y))
 
         let dotX = indicatorSize / 2 + clampedX * halfSize
-        let dotY = indicatorSize / 2 - clampedY * halfSize
+        let dotY = indicatorSize / 2 + clampedY * halfSize
 
         let dangerLevel = hypot(clampedX, clampedY)
         let dotColor: Color = dangerLevel > 0.7
