@@ -11,13 +11,15 @@ struct HandwritingCanvasView: UIViewRepresentable {
         let canvas = PKCanvasView()
         canvas.delegate = context.coordinator
         canvas.drawingPolicy = .anyInput
+        canvas.allowsFingerDrawing = true
         canvas.backgroundColor = .white
         canvas.tool = PKInkingTool(.pen, color: .black, width: 3)
-        canvas.contentSize = canvasSize
         canvas.isOpaque = false
         canvas.isScrollEnabled = false
         canvas.showsVerticalScrollIndicator = false
         canvas.showsHorizontalScrollIndicator = false
+        canvas.isMultipleTouchEnabled = true
+        canvas.isUserInteractionEnabled = true
         return canvas
     }
 
