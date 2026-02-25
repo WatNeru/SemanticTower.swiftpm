@@ -15,8 +15,6 @@ struct BalanceIndicator: View {
 
                 crosshair
 
-                axisLabels
-
                 balanceDot
             }
             .frame(width: indicatorSize, height: indicatorSize)
