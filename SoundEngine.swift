@@ -1,9 +1,10 @@
 import AVFoundation
 import Foundation
 
-/// 外部オーディオファイル不要のプロシージャル音声エンジン。
+/// 外部オーディオファイル不要のプロシージュラル音声エンジン。
 /// AVAudioEngine + 正弦波合成で全サウンドをリアルタイム生成。
 /// SSC の 25MB 制限を圧迫しない。
+@MainActor
 final class SoundEngine {
     static let shared = SoundEngine()
 

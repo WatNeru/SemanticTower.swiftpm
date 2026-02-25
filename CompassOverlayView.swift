@@ -174,7 +174,7 @@ struct ExpandedMapView: View {
                                 .fill(SemanticColorHelper.swiftUIColor(for: item.position.x, semanticY: item.position.y))
                                 .frame(width: 12, height: 12)
                                 .shadow(color: SemanticColorHelper.swiftUIColor(
-                                    for: item.position.x, y: item.position.y
+                                    for: item.position.x, semanticY: item.position.y
                                 ).opacity(0.5), radius: 4)
                             Text(item.word)
                                 .font(.system(size: 10, weight: .medium, design: .rounded))
