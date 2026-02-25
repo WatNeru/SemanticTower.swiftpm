@@ -119,34 +119,50 @@ struct OnboardingView: View {
     }
 
     private var navigationButton: some View {
-        Button {
-            if currentPage < pages.count - 1 {
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                    currentPage += 1
+        VStack(spacing: 12) {
+            Button {
+                if currentPage < pages.count - 1 {
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                        currentPage += 1
+                    }
+                } else {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        isPresented = false
+                    }
                 }
-            } else {
-                withAnimation(.easeOut(duration: 0.3)) {
-                    isPresented = false
-                }
-            }
-        } label: {
-            HStack(spacing: 8) {
-                Text(currentPage < pages.count - 1 ? "次へ" : "はじめる")
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+            } label: {
+                HStack(spacing: 8) {
+                    Text(currentPage < pages.count - 1 ? "Next" : "Start")
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
 
-                Image(systemName: currentPage < pages.count - 1
-                      ? "arrow.right"
-                      : "play.fill")
-                    .font(.system(size: 14, weight: .semibold))
+                    Image(systemName: currentPage < pages.count - 1
+                          ? "arrow.right"
+                          : "play.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                }
+                .foregroundColor(STTheme.Colors.cosmicDeep)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(
+                    Capsule()
+                        .fill(pages[currentPage].accentColor)
+                )
+                .glow(pages[currentPage].accentColor, radius: 6)
             }
-            .foregroundColor(STTheme.Colors.cosmicDeep)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(
-                Capsule()
-                    .fill(pages[currentPage].accentColor)
-            )
-            .glow(pages[currentPage].accentColor, radius: 6)
+            .accessibilityLabel(currentPage < pages.count - 1 ? "Next page" : "Start game")
+
+            if currentPage > 0 {
+                Button {
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                        currentPage -= 1
+                    }
+                } label: {
+                    Text("Back")
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundColor(STTheme.Colors.textTertiary)
+                }
+                .accessibilityLabel("Previous page")
+            }
         }
     }
 }

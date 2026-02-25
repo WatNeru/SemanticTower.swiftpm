@@ -1,7 +1,89 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var controller = SemanticGameController()
+    @State private var controller: SemanticGameController?
+
+    var body: some View {
+        Group {
+            if let controller = controller {
+                GameContentView(controller: controller)
+            } else {
+                LoadingView()
+            }
+        }
+        .task {
+            guard controller == nil else { return }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            let newController = SemanticGameController()
+            controller = newController
+        }
+        .onAppear {
+            Task.detached(priority: .utility) {
+                SemanticDemoRunner.run()
+            }
+        }
+    }
+}
+
+// MARK: - Loading Screen (cosmic theme)
+
+private struct LoadingView: View {
+    @State private var pulseScale: CGFloat = 0.8
+    @State private var rotation: Double = 0
+
+    var body: some View {
+        ZStack {
+            AnimatedBackground()
+
+            VStack(spacing: 28) {
+                ZStack {
+                    Circle()
+                        .stroke(
+                            AngularGradient(
+                                colors: [
+                                    STTheme.Colors.accentCyan,
+                                    STTheme.Colors.nebulaPurple,
+                                    STTheme.Colors.accentCyan
+                                ],
+                                center: .center
+                            ),
+                            lineWidth: 3
+                        )
+                        .frame(width: 60, height: 60)
+                        .rotationEffect(.degrees(rotation))
+
+                    Image(systemName: "brain.head.profile")
+                        .font(.system(size: 24, weight: .light))
+                        .foregroundColor(STTheme.Colors.accentCyan)
+                        .scaleEffect(pulseScale)
+                }
+
+                VStack(spacing: 8) {
+                    Text("Semantic Tower")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundColor(STTheme.Colors.textPrimary)
+
+                    Text("Loading semantic engine…")
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundColor(STTheme.Colors.textTertiary)
+                }
+            }
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                pulseScale = 1.1
+            }
+            withAnimation(.linear(duration: 2.0).repeatForever(autoreverses: false)) {
+                rotation = 360
+            }
+        }
+    }
+}
+
+// MARK: - Game Main Content
+
+private struct GameContentView: View {
+    @ObservedObject var controller: SemanticGameController
     @State private var feedbackID = UUID()
     @State private var showDropFeedback = false
     @State private var lastDroppedWord: String = ""
@@ -22,42 +104,44 @@ struct ContentView: View {
 
                 Spacer()
 
-                bottomBar
-                    .padding(.bottom, 28)
+                VStack(spacing: 8) {
+                    compassRow
+
+                    inputArea
+                }
+                .padding(.bottom, 28)
             }
         }
-        .onAppear {
-            SemanticDemoRunner.run()
-        }
+        .sensoryFeedbackForScore(controller.lastScore)
     }
 
-    // MARK: - Top gradient overlay for readability
+    // MARK: - Gradient overlay
 
     private var overlayGradient: some View {
         VStack(spacing: 0) {
             LinearGradient(
                 colors: [
-                    STTheme.Colors.cosmicDeep.opacity(0.7),
-                    STTheme.Colors.cosmicDeep.opacity(0.3),
+                    STTheme.Colors.cosmicDeep.opacity(0.65),
+                    STTheme.Colors.cosmicDeep.opacity(0.25),
                     Color.clear
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .frame(height: 160)
+            .frame(height: 150)
 
             Spacer()
 
             LinearGradient(
                 colors: [
                     Color.clear,
-                    STTheme.Colors.cosmicDeep.opacity(0.4),
-                    STTheme.Colors.cosmicDeep.opacity(0.8)
+                    STTheme.Colors.cosmicDeep.opacity(0.35),
+                    STTheme.Colors.cosmicDeep.opacity(0.75)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .frame(height: 140)
+            .frame(height: 160)
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
@@ -78,11 +162,21 @@ struct ContentView: View {
                         .foregroundColor(STTheme.Colors.textPrimary)
                 }
 
-                Text(controller.isDemoMode
-                     ? "Demo mode — preset words"
-                     : "Manual mode — type any word")
+                Text(modeLabel)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundColor(STTheme.Colors.textTertiary)
+
+                if let score = controller.lastScore, let word = controller.lastScoredWord {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(rankColor(score.rank))
+                            .frame(width: 6, height: 6)
+                        Text("\(rankLabel(score.rank)): \"\(word)\" (\(Int(score.accuracy * 100))%)")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundColor(STTheme.Colors.textSecondary)
+                    }
+                    .transition(.opacity.combined(with: .scale))
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -90,15 +184,220 @@ struct ContentView: View {
 
             Spacer()
 
-            BalanceIndicator(
-                centerOfMass: controller.scene3D.currentCenterOfMass,
-                discCount: controller.scene3D.activeDiscCount
-            )
+            VStack(spacing: 8) {
+                BalanceIndicator(
+                    centerOfMass: controller.scene3D.currentCenterOfMass,
+                    discCount: controller.scene3D.activeDiscCount
+                )
+
+                GameStatsView(
+                    discCount: controller.scene3D.activeDiscCount,
+                    perfectStreak: controller.perfectStreak,
+                    isBalanced: isBalanced(controller.scene3D.currentCenterOfMass)
+                )
+            }
         }
         .padding(.horizontal, 20)
     }
 
-    // MARK: - Center feedback
+    private func isBalanced(_ center: CGPoint) -> Bool {
+        hypot(center.x, center.y) < 0.4
+    }
+
+    private var modeLabel: String {
+        if controller.isDemoMode {
+            return "Demo mode — preset words"
+        }
+        switch controller.inputMode {
+        case .keyboard: return "Manual — type any word"
+        case .handwriting: return "Manual — draw with Pencil"
+        }
+    }
+
+    // MARK: - Compass row
+
+    private var compassRow: some View {
+        HStack {
+            Spacer()
+            CompassOverlayView(controller: controller)
+        }
+        .padding(.horizontal, 20)
+    }
+
+    // MARK: - Input area
+
+    private var inputArea: some View {
+        VStack(spacing: 10) {
+            if !controller.isDemoMode {
+                Picker("Input", selection: $controller.inputMode) {
+                    ForEach(InputMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 4)
+            }
+
+            switch controller.inputMode {
+            case .keyboard:
+                keyboardInputRow
+            case .handwriting:
+                handwritingInputArea
+            }
+        }
+        .padding(16)
+        .glassCard(cornerRadius: 22, opacity: 0.12)
+        .padding(.horizontal, 20)
+    }
+
+    private var keyboardInputRow: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "character.cursor.ibeam")
+                    .foregroundColor(STTheme.Colors.textTertiary)
+                    .font(.system(size: 13))
+
+                TextField("type a word…", text: $controller.wordInput)
+                    .textInputAutocapitalization(.never)
+                    .disableAutocorrection(true)
+                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .foregroundColor(controller.isDemoMode
+                                     ? STTheme.Colors.textTertiary
+                                     : STTheme.Colors.textPrimary)
+                    .disabled(controller.isDemoMode)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.ultraThinMaterial)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(STTheme.Colors.glassWhiteBorder, lineWidth: 0.5)
+            )
+
+            actionButtons
+        }
+    }
+
+    private var handwritingInputArea: some View {
+        VStack(spacing: 8) {
+            HandwritingCanvasView(
+                drawing: $controller.handwritingDrawing,
+                canvasSize: CGSize(width: 340, height: 80)
+            )
+            .frame(height: 80)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.ultraThinMaterial)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .disabled(controller.isDemoMode)
+
+            if let rec = controller.lastRecognitionResult, !rec.text.isEmpty {
+                RecognizedTextFeedbackView(result: rec)
+                    .font(.subheadline.monospaced())
+            }
+
+            if let err = controller.recognitionError {
+                Text(err)
+                    .font(.caption2)
+                    .foregroundColor(STTheme.Colors.missRed)
+            }
+
+            HStack(spacing: 10) {
+                Button {
+                    controller.clearHandwriting()
+                } label: {
+                    Image(systemName: "eraser")
+                        .font(.body.weight(.medium))
+                        .foregroundColor(STTheme.Colors.textSecondary)
+                        .padding(8)
+                        .glassCard(cornerRadius: 10, opacity: 0.10)
+                }
+                .disabled(controller.isDemoMode)
+
+                actionButtons
+            }
+        }
+    }
+
+    private var actionButtons: some View {
+        HStack(spacing: 8) {
+            Button {
+                performDrop()
+            } label: {
+                HStack(spacing: 5) {
+                    if controller.isRecognizing {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .tint(STTheme.Colors.cosmicDeep)
+                    } else {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Drop")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                    }
+                }
+                .foregroundColor(STTheme.Colors.cosmicDeep)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    Capsule().fill(STTheme.Colors.accentCyan)
+                )
+                .glow(STTheme.Colors.accentCyan, radius: 4)
+            }
+            .disabled(isDropDisabled)
+
+            Button {
+                withAnimation(.spring(response: 0.3)) {
+                    controller.isDemoMode.toggle()
+                }
+            } label: {
+                VStack(spacing: 1) {
+                    Image(systemName: controller.isDemoMode ? "play.circle.fill" : "keyboard")
+                        .font(.system(size: 16))
+                    Text(controller.isDemoMode ? "Demo" : "Manual")
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                }
+                .foregroundColor(controller.isDemoMode
+                                 ? STTheme.Colors.accentGold
+                                 : STTheme.Colors.accentCyan)
+                .frame(width: 46, height: 42)
+                .glassCard(cornerRadius: 12, opacity: 0.10)
+            }
+        }
+    }
+
+    private var isDropDisabled: Bool {
+        if controller.isDemoMode { return false }
+        if controller.isRecognizing { return true }
+        if controller.inputMode == .handwriting {
+            return controller.handwritingDrawing.bounds.isEmpty
+        }
+        return false
+    }
+
+    private func performDrop() {
+        if controller.isDemoMode {
+            lastDroppedWord = controller.nextDemoWord
+            controller.dropCurrentWord()
+            feedbackID = UUID()
+            showDropFeedback = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                showDropFeedback = false
+            }
+        } else if controller.inputMode == .handwriting {
+            Task { @MainActor in await controller.recognizeAndDrop() }
+            feedbackID = UUID()
+        } else {
+            controller.dropCurrentWord()
+            feedbackID = UUID()
+        }
+    }
+
+    // MARK: - Feedback overlay
 
     private var feedbackOverlay: some View {
         ZStack {
@@ -116,45 +415,67 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Bottom bar
+    // MARK: - Helpers
 
-    private var bottomBar: some View {
-        WordInputBar(
-            text: $controller.wordInput,
-            isDemoMode: controller.isDemoMode,
-            onDrop: {
-                let wordBeforeDrop = controller.isDemoMode
-                    ? controller.nextDemoWord
-                    : controller.wordInput
-                controller.dropCurrentWord()
-                feedbackID = UUID()
-
-                if controller.isDemoMode {
-                    lastDroppedWord = wordBeforeDrop
-                    showDropFeedback = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                        showDropFeedback = false
-                    }
-                }
-            },
-            onToggleMode: {
-                withAnimation(.spring(response: 0.3)) {
-                    controller.isDemoMode.toggle()
-                }
-            }
-        )
+    private func rankLabel(_ rank: ScoreRank) -> String {
+        switch rank {
+        case .perfect: return "Perfect"
+        case .nice: return "Nice"
+        case .miss: return "Miss"
+        }
     }
 
-    private func rankLabelText(from rankAny: Any) -> String {
-        let raw = String(describing: rankAny).lowercased()
-        if raw.contains("perfect") { return "Perfect" }
-        if raw.contains("nice") { return "Nice" }
-        if raw.contains("miss") { return "Try again" }
-        return raw.capitalized
+    private func rankColor(_ rank: ScoreRank) -> Color {
+        switch rank {
+        case .perfect: return STTheme.Colors.perfectGreen
+        case .nice: return STTheme.Colors.niceYellow
+        case .miss: return STTheme.Colors.missRed
+        }
     }
 }
 
-/// フェーズ1のセマンティック・エンジンを検証するための簡易デモ。
+// MARK: - Recognition feedback
+
+struct RecognizedTextFeedbackView: View {
+    let result: RecognitionResult
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(result.text.enumerated()), id: \.offset) { index, char in
+                Text(String(char))
+                    .foregroundColor(result.uncertainCharacterIndices.contains(index)
+                                     ? STTheme.Colors.missRed
+                                     : STTheme.Colors.textPrimary)
+                    .fontWeight(result.uncertainCharacterIndices.contains(index) ? .bold : .regular)
+            }
+        }
+    }
+}
+
+// MARK: - Haptic feedback bridge
+
+private extension View {
+    @ViewBuilder
+    func sensoryFeedbackForScore(_ score: ScoreResult?) -> some View {
+        if #available(iOS 17.0, *) {
+            self.sensoryFeedback(trigger: score) { _, newValue in
+                guard let newScore = newValue else { return nil }
+                switch newScore.rank {
+                case .perfect: return .success
+                case .nice: return .warning
+                case .miss: return .error
+                }
+            }
+        } else {
+            self.onChange(of: score?.rank) { newRank in
+                if let rank = newRank { HapticFeedback.play(for: rank) }
+            }
+        }
+    }
+}
+
+// MARK: - Demo runner
+
 enum SemanticDemoRunner {
     static func run() {
         #if DEBUG

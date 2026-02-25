@@ -56,6 +56,12 @@ struct SemanticEmbeddingManager {
         return CGPoint(x: base.x * factor, y: base.y * factor)
     }
 
+    /// 重心を立て直すための最適落下位置（セマンティック座標）を返す。
+    /// 現在の重心の反対方向がターゲットとなる。
+    func targetDropPosition(currentBalance: CGPoint) -> CGPoint {
+        CGPoint(x: -currentBalance.x, y: -currentBalance.y)
+    }
+
     /// 現在の重心を打ち消す方向に近い単語を、候補リストの中から探索する。
     /// - Parameters:
     ///   - currentBalance: 現在の重心ベクトル

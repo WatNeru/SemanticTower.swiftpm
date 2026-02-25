@@ -6,6 +6,27 @@ import UIKit
 import AppKit
 #endif
 
+#if canImport(UIKit)
+typealias PlatformColor = UIColor
+#else
+typealias PlatformColor = NSColor
+#endif
+
+/// 認識精度に応じたディスク形状（仕様: Perfect=正円, Nice=歪み, Miss=欠け）
+enum DiskShape {
+    case perfect  // 安定した正円
+    case nice     // 一部歪んだ円盤
+    case miss     // 欠けた円盤（最も不安定）
+
+    static func from(scoreRank: ScoreRank) -> DiskShape {
+        switch scoreRank {
+        case .perfect: return .perfect
+        case .nice: return .nice
+        case .miss: return .miss
+        }
+    }
+}
+
 // MARK: - 物理パラメータ（ドロップ系スタッキングのベストプラクティス準拠）
 // 参考: Stack Overflow "What SpriteKit physics properties are needed for stacking and balancing",
 //       SceneKit friction/restitution, Kodeco SceneKit Physics Tutorial
@@ -40,6 +61,12 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         var isOnBoard: Bool
     }
     private var discs: [SemanticDisc] = []
+    /// 重心を立て直すための最適落下位置マーカー（ボードの子ノード）
+    private var targetMarkerNode: SCNNode?
+
+    /// ミニマップ用: 最適落下位置（セマンティック座標 [-1,1]）が更新されたときに呼ばれる。
+    /// ターゲット = 重心の反対側 = (-centerOfMass.x, -centerOfMass.y)
+    var onTargetPositionUpdated: ((CGPoint) -> Void)?
 
     private enum PhysicsCategory {
         static let floor: Int = 1 << 0
@@ -58,6 +85,14 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         scene.physicsWorld.gravity = SCNVector3(0, -9.8, 0)
         scene.physicsWorld.contactDelegate = self
 
+        // 環境（CAGradientLayer はシミュレータの Metal でクラッシュするため単色を使用）
+        // アクセシビリティ: ややニュートラル寄りの青で、ラベル・ディスクとのコントラストを確保
+#if canImport(UIKit)
+        scene.background.contents = UIColor(red: 0.88, green: 0.93, blue: 0.98, alpha: 1)
+#else
+        scene.background.contents = NSColor(red: 0.88, green: 0.93, blue: 0.98, alpha: 1)
+#endif
+
         // カメラ
         cameraNode.camera = SCNCamera()
         cameraNode.position = SCNVector3(0, 4, 8)
@@ -71,14 +106,15 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         lightNode.position = SCNVector3(5, 8, 5)
         scene.rootNode.addChildNode(lightNode)
 
-        // 床
+        
+        // 床（やや明るいグレーでボードのガラス感を際立たせる）
         let floor = SCNFloor()
-        floor.reflectivity = 0.1
+        floor.reflectivity = 0.15
         let floorNode = SCNNode(geometry: floor)
 #if canImport(UIKit)
-        floorNode.geometry?.firstMaterial?.diffuse.contents = UIColor.darkGray
+        floorNode.geometry?.firstMaterial?.diffuse.contents = UIColor(white: 0.25, alpha: 1)
 #else
-        floorNode.geometry?.firstMaterial?.diffuse.contents = NSColor.darkGray
+        floorNode.geometry?.firstMaterial?.diffuse.contents = NSColor(white: 0.25, alpha: 1)
 #endif
         // 床は静的な物理ボディ。低反発・高摩擦で落ちたディスクの跳ねを抑える。
         let floorBody = SCNPhysicsBody.static()
@@ -91,15 +127,9 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         floorNode.position = SCNVector3(0, -1.0, 0)
         scene.rootNode.addChildNode(floorNode)
 
-        // タワーの土台（傾ける板）
-        // 以前の当たり判定位置に近づけるため、高さを少し厚めに戻す。
+        // タワーの土台（傾ける板）— PBR ガラス風マテリアル
         let boardGeometry = SCNBox(width: 6, height: 0.4, length: 6, chamferRadius: 0.2)
-#if canImport(UIKit)
-        boardGeometry.firstMaterial?.diffuse.contents =
-        UIColor.white
-#else
-        boardGeometry.firstMaterial?.diffuse.contents = NSColor.white
-#endif
+        Self.applyGlassMaterial(to: boardGeometry.firstMaterial)
         boardNode = SCNNode(geometry: boardGeometry)
         boardNode.position = SCNVector3(0, 1.0, 0)
         // 土台は kinematic: コードで傾きを制御し、その上に乗る dynamic オブジェクトと衝突する。
@@ -113,6 +143,19 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         scene.rootNode.addChildNode(boardNode)
 
         addAnchorLabels()
+        addTargetMarker()
+
+        // 環境光を追加（ガラス表現の補助）
+        let ambientNode = SCNNode()
+        ambientNode.light = SCNLight()
+        ambientNode.light?.type = .ambient
+        ambientNode.light?.intensity = 400
+#if canImport(UIKit)
+        ambientNode.light?.color = UIColor(white: 0.9, alpha: 1)
+#else
+        ambientNode.light?.color = NSColor(white: 0.9, alpha: 1)
+#endif
+        scene.rootNode.addChildNode(ambientNode)
 
         // ディスク移動に合わせて重心を定期的に更新する。
         Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
@@ -122,14 +165,25 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
 
     /// セマンティック座標をボード上の位置にマッピングしてディスクを追加。
     /// position は [-1, 1] の範囲を想定。
-    func addDisc(atSemanticPosition position: CGPoint, color: UIColor, mass: Double) {
-        let radius: CGFloat = 0.3
+    /// diskShape: .perfect = 正円（安定）, .nice = 歪んだ円盤（不安定）, .miss = 欠けた円盤（最も不安定）
+    func addDisc(atSemanticPosition position: CGPoint, color: PlatformColor, mass: Double, diskShape: DiskShape = .perfect) {
+        let baseRadius: CGFloat = 0.3
         let height: CGFloat = 0.2
 
-        let geometry = SCNCylinder(radius: radius, height: height)
-        geometry.firstMaterial?.diffuse.contents = color
+        let geometry = SCNCylinder(radius: baseRadius, height: height)
+        Self.applyDiscMaterial(to: geometry.firstMaterial, baseColor: color, diskShape: diskShape)
 
         let node = SCNNode(geometry: geometry)
+
+        // 仕様: Perfect=正円, Nice=歪んだ円盤, Miss=欠けた円盤で物理的に不安定に
+        switch diskShape {
+        case .perfect:
+            break  // そのまま正円
+        case .nice:
+            node.scale = SCNVector3(1.15, 1.0, 0.88)  // 楕円形に変形
+        case .miss:
+            node.scale = SCNVector3(1.25, 1.0, 0.75)  // より歪んで不安定
+        }
 
         // ボードは width=6, length=6。セマンティック座標を少し強調して左右に広げる。
         // [-1, 1] のセマンティックXを 4倍してから [-1, 1] に再クリップし、ボード半幅(≈3)の内側に収める。
@@ -166,41 +220,119 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         )
     }
 
-    private func addAnchorLabels() {
-        let font = UIFont.systemFont(ofSize: 0.4, weight: .semibold)
+    // MARK: - マテリアルヘルパー
 
-        func makeTextNode(_ text: String) -> SCNNode {
+    private static func applyGlassMaterial(to material: SCNMaterial?) {
+        guard let mat = material else { return }
+        mat.lightingModel = .physicallyBased
+        mat.transparency = 0.85
+        mat.transparencyMode = .dualLayer
+        mat.fresnelExponent = 1.5
+#if canImport(UIKit)
+        mat.diffuse.contents = UIColor(red: 0.95, green: 0.95, blue: 0.98, alpha: 1)
+        mat.specular.contents = UIColor(white: 0.6, alpha: 1)
+        mat.metalness.contents = 0.1
+        mat.roughness.contents = 0.05
+#else
+        mat.diffuse.contents = NSColor(red: 0.95, green: 0.95, blue: 0.98, alpha: 1)
+        mat.specular.contents = NSColor(white: 0.6, alpha: 1)
+        mat.metalness.contents = 0.1
+        mat.roughness.contents = 0.05
+#endif
+        mat.isDoubleSided = true
+    }
+
+    private static func applyDiscMaterial(to material: SCNMaterial?, baseColor: PlatformColor, diskShape: DiskShape) {
+        guard let mat = material else { return }
+        mat.lightingModel = .physicallyBased
+        mat.diffuse.contents = baseColor
+        mat.isDoubleSided = false
+#if canImport(UIKit)
+        switch diskShape {
+        case .perfect:
+            mat.specular.contents = UIColor(white: 0.8, alpha: 1)
+            mat.roughness.contents = 0.08
+            mat.metalness.contents = 0.05
+        case .nice:
+            mat.specular.contents = UIColor(white: 0.5, alpha: 1)
+            mat.roughness.contents = 0.25
+            mat.metalness.contents = 0.02
+        case .miss:
+            mat.specular.contents = UIColor(white: 0.2, alpha: 1)
+            mat.roughness.contents = 0.6
+            mat.metalness.contents = 0
+        }
+#else
+        switch diskShape {
+        case .perfect:
+            mat.specular.contents = NSColor(white: 0.8, alpha: 1)
+            mat.roughness.contents = 0.08
+            mat.metalness.contents = 0.05
+        case .nice:
+            mat.specular.contents = NSColor(white: 0.5, alpha: 1)
+            mat.roughness.contents = 0.25
+            mat.metalness.contents = 0.02
+        case .miss:
+            mat.specular.contents = NSColor(white: 0.2, alpha: 1)
+            mat.roughness.contents = 0.6
+            mat.metalness.contents = 0
+        }
+#endif
+    }
+
+    private func addAnchorLabels() {
+        let billboard = SCNBillboardConstraint()
+        billboard.freeAxes = .all
+
+        let font = UIFont.systemFont(ofSize: 0.6, weight: .bold)
+
+        func makeTextNode(_ text: String, color: PlatformColor) -> SCNNode {
             let textGeometry = SCNText(string: text, extrusionDepth: 0.02)
             textGeometry.font = font
-            textGeometry.firstMaterial?.diffuse.contents = UIColor.systemYellow
+            textGeometry.flatness = 0.1
+            textGeometry.firstMaterial?.diffuse.contents = color
+            textGeometry.firstMaterial?.emission.contents = color.withAlphaComponent(0.15)
+            textGeometry.firstMaterial?.isDoubleSided = true
             let node = SCNNode(geometry: textGeometry)
             let (minVec, maxVec) = textGeometry.boundingBox
-            let width = maxVec.x - minVec.x
-            node.pivot = SCNMatrix4MakeTranslation((minVec.x + width / 2), minVec.y, 0)
-            node.scale = SCNVector3(0.3, 0.3, 0.3)
+            let textWidth = maxVec.x - minVec.x
+            let textHeight = maxVec.y - minVec.y
+            node.pivot = SCNMatrix4MakeTranslation(
+                minVec.x + textWidth / 2,
+                minVec.y + textHeight / 2,
+                0
+            )
+            node.scale = SCNVector3(0.4, 0.4, 0.4)
+            node.constraints = [billboard]
             return node
         }
 
-        // X軸: Nature (+X), Machine (-X)
-        let natureNode = makeTextNode("Nature")
-        natureNode.position = SCNVector3(3.2, 1.6, 0)
-        natureNode.eulerAngles = SCNVector3(-Float.pi / 2, 0, 0)
+#if canImport(UIKit)
+        let natureColor = UIColor(red: 0.15, green: 0.72, blue: 0.38, alpha: 1)
+        let machineColor = UIColor(red: 0.40, green: 0.30, blue: 0.75, alpha: 1)
+        let livingColor = UIColor(red: 0.92, green: 0.68, blue: 0.20, alpha: 1)
+        let objectColor = UIColor(red: 0.25, green: 0.65, blue: 0.88, alpha: 1)
+#else
+        let natureColor = NSColor(red: 0.15, green: 0.72, blue: 0.38, alpha: 1)
+        let machineColor = NSColor(red: 0.40, green: 0.30, blue: 0.75, alpha: 1)
+        let livingColor = NSColor(red: 0.92, green: 0.68, blue: 0.20, alpha: 1)
+        let objectColor = NSColor(red: 0.25, green: 0.65, blue: 0.88, alpha: 1)
+#endif
+
+        let natureNode = makeTextNode("Nature", color: natureColor)
+        natureNode.position = SCNVector3(3.4, 1.8, 0)
         scene.rootNode.addChildNode(natureNode)
 
-        let machineNode = makeTextNode("Machine")
-        machineNode.position = SCNVector3(-3.2, 1.6, 0)
-        machineNode.eulerAngles = SCNVector3(-Float.pi / 2, 0, 0)
+        let machineNode = makeTextNode("Machine", color: machineColor)
+        machineNode.position = SCNVector3(-3.4, 1.8, 0)
         scene.rootNode.addChildNode(machineNode)
 
-        // Y軸（セマンティックでは垂直）を Z 方向に対応させる: Living (+Z), Object (-Z)
-        let livingNode = makeTextNode("Living")
-        livingNode.position = SCNVector3(0, 1.6, 3.2)
-        livingNode.eulerAngles = SCNVector3(-Float.pi / 2, 0, 0)
+        let livingNode = makeTextNode("Living", color: livingColor)
+        livingNode.position = SCNVector3(0, 1.8, 3.4)
         scene.rootNode.addChildNode(livingNode)
 
-        let objectNode = makeTextNode("Object")
-        objectNode.position = SCNVector3(0, 1.6, -3.2)
-        objectNode.eulerAngles = SCNVector3(-Float.pi / 2, 0, 0)
+        let objectNode = makeTextNode("Object", color: objectColor)
+        objectNode.position = SCNVector3(0, 1.8, -3.4)
         scene.rootNode.addChildNode(objectNode)
     }
 
@@ -239,6 +371,43 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         smoothedCenterOfMass.y += (targetCenter.y - smoothedCenterOfMass.y) * alpha
 
         updateBoardTilt(centerOfMass: smoothedCenterOfMass)
+        updateTargetMarkerPosition(centerOfMass: smoothedCenterOfMass)
+        // ミニマップ用: ターゲット位置（重心の反対側）を通知
+        let targetPos = CGPoint(x: -smoothedCenterOfMass.x, y: -smoothedCenterOfMass.y)
+        onTargetPositionUpdated?(targetPos)
+    }
+
+    private func addTargetMarker() {
+        // 薄い円環（トーラス）で「ここに落とす」を表示。横向き楕円状にスケール。
+        // アクセシビリティ: 視認性の高いインディゴ系（アンカーラベルと調和しつつ区別可能）
+        let torus = SCNTorus(ringRadius: 0.35, pipeRadius: 0.03)
+        let mat = SCNMaterial()
+#if canImport(UIKit)
+        let markerColor = UIColor(red: 0.35, green: 0.42, blue: 0.82, alpha: 1)
+#else
+        let markerColor = NSColor(red: 0.35, green: 0.42, blue: 0.82, alpha: 1)
+#endif
+        mat.diffuse.contents = markerColor.withAlphaComponent(0.9)
+        mat.emission.contents = markerColor.withAlphaComponent(0.35)
+        mat.transparency = 0.9
+        torus.materials = [mat]
+        let node = SCNNode(geometry: torus)
+        // 円をボードと同じ向き（水平）にする。
+        node.eulerAngles.x = 0
+        node.position = SCNVector3(0, 0.21, 0)  // ボード上面よりわずかに上
+        node.name = "targetMarker"
+        boardNode.addChildNode(node)
+        targetMarkerNode = node
+    }
+
+    private func updateTargetMarkerPosition(centerOfMass: CGPoint) {
+        guard let marker = targetMarkerNode else { return }
+        // 重心の反対側が最適落下位置
+        let targetX = Float(-centerOfMass.x) * 2.5
+        let targetZ = Float(-centerOfMass.y) * 2.5
+        marker.position = SCNVector3(targetX, 0.21, targetZ)
+        // ディスクが無いときは非表示
+        marker.isHidden = discs.filter { $0.isOnBoard }.isEmpty
     }
 
     /// セマンティック重心に応じて土台の傾き（X/Z軸回転）を更新。
