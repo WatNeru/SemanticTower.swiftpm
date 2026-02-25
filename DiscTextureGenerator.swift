@@ -7,27 +7,23 @@ enum DiscTextureGenerator {
     static func generate(
         word: String,
         baseColor: UIColor,
-        diskShape: DiskShape
+        diskShape: DiskShape,
+        shapeType: DiscShapeType = .circle
     ) -> UIImage {
         let size = CGSize(width: 256, height: 256)
         let renderer = UIGraphicsImageRenderer(size: size)
 
         let textColor = SemanticColorHelper.contrastingTextColor(for: baseColor)
-        let ringColor = SemanticColorHelper.contrastingRingColor(for: baseColor)
         let iconColor = SemanticColorHelper.contrastingIconColor(for: baseColor)
 
         return renderer.image { ctx in
             let cgCtx = ctx.cgContext
             let rect = CGRect(origin: .zero, size: size)
-            let center = CGPoint(x: size.width / 2, y: size.height / 2)
-            let radius = size.width / 2
 
-            cgCtx.addEllipse(in: rect)
-            cgCtx.clip()
+            let clipPath = shapeType.texturePath(size: size.width)
+            clipPath.addClip()
 
             drawBackground(cgCtx: cgCtx, rect: rect, baseColor: baseColor)
-            drawRing(cgCtx: cgCtx, center: center, radius: radius,
-                     ringColor: ringColor, diskShape: diskShape)
             drawIcon(word: word, in: rect, color: iconColor, diskShape: diskShape)
             drawWord(word, in: rect, color: textColor, diskShape: diskShape)
         }
@@ -59,39 +55,6 @@ enum DiscTextureGenerator {
                 endRadius: rect.width * 0.6,
                 options: [.drawsAfterEndLocation]
             )
-        }
-    }
-
-    // MARK: - Ring decoration
-
-    private static func drawRing(
-        cgCtx: CGContext,
-        center: CGPoint,
-        radius: CGFloat,
-        ringColor: UIColor,
-        diskShape: DiskShape
-    ) {
-        let ringWidth: CGFloat
-        switch diskShape {
-        case .perfect: ringWidth = 8
-        case .nice:    ringWidth = 6
-        case .miss:    ringWidth = 4
-        }
-
-        cgCtx.setStrokeColor(ringColor.cgColor)
-        cgCtx.setLineWidth(ringWidth)
-        let outerRing = CGRect(
-            x: center.x - radius + ringWidth / 2,
-            y: center.y - radius + ringWidth / 2,
-            width: (radius - ringWidth / 2) * 2,
-            height: (radius - ringWidth / 2) * 2
-        )
-        cgCtx.strokeEllipse(in: outerRing)
-
-        if diskShape == .perfect {
-            let innerRing = outerRing.insetBy(dx: 12, dy: 12)
-            cgCtx.setLineWidth(2)
-            cgCtx.strokeEllipse(in: innerRing)
         }
     }
 

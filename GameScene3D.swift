@@ -222,34 +222,41 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         word: String = "",
         diskShape: DiskShape = .perfect
     ) {
-        let baseRadius: CGFloat = 0.3
-        let height: CGFloat = 0.2
+        let shapeRadius: CGFloat = 0.3
+        let extrusionDepth: CGFloat = 0.18
 
-        let geometry = SCNCylinder(radius: baseRadius, height: height)
+        let shapeType = DiscShapeType.shape(for: word)
+        let bezierPath = shapeType.bezierPath(radius: shapeRadius)
+
+        let geometry = SCNShape(path: bezierPath, extrusionDepth: extrusionDepth)
+        geometry.chamferRadius = 0.02
 
         let texture = DiscTextureGenerator.generate(
             word: word,
             baseColor: color,
-            diskShape: diskShape
+            diskShape: diskShape,
+            shapeType: shapeType
         )
-        Self.applyDiscMaterial(
-            to: geometry,
+        DiscMaterialHelper.applyToShape(
+            geometry: geometry,
             baseColor: color,
             diskShape: diskShape,
-            topTexture: texture
+            faceTexture: texture
         )
 
         let node = SCNNode(geometry: geometry)
 
-        // 仕様: Perfect=正円, Nice=歪んだ円盤, Miss=欠けた円盤で物理的に不安定に
         switch diskShape {
         case .perfect:
-            break  // そのまま正円
+            break
         case .nice:
-            node.scale = SCNVector3(1.15, 1.0, 0.88)  // 楕円形に変形
+            node.scale = SCNVector3(1.12, 1.0, 0.90)
         case .miss:
-            node.scale = SCNVector3(1.25, 1.0, 0.75)  // より歪んで不安定
+            node.scale = SCNVector3(1.20, 1.0, 0.80)
         }
+
+        // SCNShape は XY 平面上に生成されるので、水平に回転
+        node.eulerAngles.x = -.pi / 2
 
         // ボードは width=6, length=6 (半幅 3)。
         // セマンティック座標 [-1, 1] はすでに非線形スプレッド済みなので
@@ -308,17 +315,7 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         mat.isDoubleSided = true
     }
 
-    private static func applyDiscMaterial(
-        to geometry: SCNCylinder,
-        baseColor: PlatformColor,
-        diskShape: DiskShape,
-        topTexture: UIImage
-    ) {
-        DiscMaterialHelper.apply(
-            to: geometry, baseColor: baseColor,
-            diskShape: diskShape, topTexture: topTexture
-        )
-    }
+    // マテリアルは DiscMaterialHelper.applyToShape で直接適用
 
     private func addAnchorLabels() {
         let billboard = SCNBillboardConstraint()

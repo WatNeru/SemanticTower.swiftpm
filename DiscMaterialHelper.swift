@@ -3,30 +3,42 @@ import SceneKit
 import UIKit
 #endif
 
-/// SCNCylinder に天面テクスチャ + 側面/底面カラーを割り当て。
-/// diskShape で質感（光沢・粗さ・金属感）が変化する。
+/// SCNShape / SCNCylinder にマテリアルを割り当てるヘルパー。
 enum DiscMaterialHelper {
-    static func apply(
-        to geometry: SCNCylinder,
+
+    /// SCNShape 用: マテリアル配列 [front, back, side, chamfer]
+    static func applyToShape(
+        geometry: SCNShape,
         baseColor: PlatformColor,
         diskShape: DiskShape,
-        topTexture: UIImage
+        faceTexture: UIImage
     ) {
+        let frontMat = makeFaceMaterial(texture: faceTexture, diskShape: diskShape)
+        let backMat = makeSideMaterial(color: baseColor, diskShape: diskShape)
         let sideMat = makeSideMaterial(color: baseColor, diskShape: diskShape)
-        let topMat = makeTopMaterial(texture: topTexture, diskShape: diskShape)
-        let bottomMat = makeSideMaterial(color: baseColor, diskShape: diskShape)
+        let chamferMat = makeChamferMaterial(color: baseColor, diskShape: diskShape)
 
-        geometry.materials = [sideMat, topMat, bottomMat]
+        geometry.materials = [frontMat, backMat, sideMat, chamferMat]
+    }
+
+    // MARK: - Material factories
+
+    private static func makeFaceMaterial(
+        texture: UIImage,
+        diskShape: DiskShape
+    ) -> SCNMaterial {
+        let mat = SCNMaterial()
+        mat.lightingModel = .physicallyBased
+        mat.diffuse.contents = texture
+        mat.isDoubleSided = false
+        applyQuality(to: mat, diskShape: diskShape)
+        return mat
     }
 
     private static func makeSideMaterial(
         color: PlatformColor,
         diskShape: DiskShape
     ) -> SCNMaterial {
-        let mat = SCNMaterial()
-        mat.lightingModel = .physicallyBased
-        mat.isDoubleSided = false
-
         var hue: CGFloat = 0, sat: CGFloat = 0, bri: CGFloat = 0, alpha: CGFloat = 0
         color.getHue(&hue, saturation: &sat, brightness: &bri, alpha: &alpha)
         let sideColor = PlatformColor(
@@ -35,8 +47,37 @@ enum DiscMaterialHelper {
             brightness: max(0, bri - 0.10),
             alpha: 1
         )
-        mat.diffuse.contents = sideColor
 
+        let mat = SCNMaterial()
+        mat.lightingModel = .physicallyBased
+        mat.diffuse.contents = sideColor
+        mat.isDoubleSided = false
+        applyQuality(to: mat, diskShape: diskShape)
+        return mat
+    }
+
+    private static func makeChamferMaterial(
+        color: PlatformColor,
+        diskShape: DiskShape
+    ) -> SCNMaterial {
+        var hue: CGFloat = 0, sat: CGFloat = 0, bri: CGFloat = 0, alpha: CGFloat = 0
+        color.getHue(&hue, saturation: &sat, brightness: &bri, alpha: &alpha)
+        let chamferColor = PlatformColor(
+            hue: hue,
+            saturation: max(0, sat - 0.10),
+            brightness: min(1, bri + 0.08),
+            alpha: 1
+        )
+
+        let mat = SCNMaterial()
+        mat.lightingModel = .physicallyBased
+        mat.diffuse.contents = chamferColor
+        mat.isDoubleSided = false
+        applyQuality(to: mat, diskShape: diskShape)
+        return mat
+    }
+
+    private static func applyQuality(to mat: SCNMaterial, diskShape: DiskShape) {
         switch diskShape {
         case .perfect:
             mat.specular.contents = PlatformColor(white: 0.9, alpha: 1)
@@ -51,32 +92,5 @@ enum DiscMaterialHelper {
             mat.roughness.contents = 0.65
             mat.metalness.contents = 0
         }
-        return mat
-    }
-
-    private static func makeTopMaterial(
-        texture: UIImage,
-        diskShape: DiskShape
-    ) -> SCNMaterial {
-        let mat = SCNMaterial()
-        mat.lightingModel = .physicallyBased
-        mat.diffuse.contents = texture
-        mat.isDoubleSided = false
-
-        switch diskShape {
-        case .perfect:
-            mat.specular.contents = PlatformColor(white: 0.7, alpha: 1)
-            mat.roughness.contents = 0.10
-            mat.metalness.contents = 0.05
-        case .nice:
-            mat.specular.contents = PlatformColor(white: 0.4, alpha: 1)
-            mat.roughness.contents = 0.35
-            mat.metalness.contents = 0.02
-        case .miss:
-            mat.specular.contents = PlatformColor(white: 0.1, alpha: 1)
-            mat.roughness.contents = 0.70
-            mat.metalness.contents = 0
-        }
-        return mat
     }
 }
