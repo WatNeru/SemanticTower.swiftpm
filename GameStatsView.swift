@@ -7,6 +7,8 @@ struct GameStatsView: View {
     let perfectStreak: Int
     let isBalanced: Bool
     let fallCount: Int
+    var largeText: Bool = false
+    var highContrast: Bool = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -77,15 +79,15 @@ struct GameStatsView: View {
         VStack(spacing: 2) {
             HStack(spacing: 3) {
                 Image(systemName: icon)
-                    .font(.system(size: 10))
-                    .foregroundColor(color)
+                    .font(.system(size: largeText ? 13 : 10))
+                    .foregroundColor(highContrast ? .white : color)
                 Text(value)
-                    .font(.system(size: 12, weight: .bold, design: .monospaced))
-                    .foregroundColor(STTheme.Colors.textPrimary)
+                    .font(.system(size: largeText ? 15 : 12, weight: .bold, design: .monospaced))
+                    .foregroundColor(highContrast ? .white : STTheme.Colors.textPrimary)
             }
             Text(label)
-                .font(.system(size: 7, weight: .medium, design: .rounded))
-                .foregroundColor(STTheme.Colors.textTertiary)
+                .font(.system(size: largeText ? 9 : 7, weight: .medium, design: .rounded))
+                .foregroundColor(highContrast ? .white.opacity(0.8) : STTheme.Colors.textTertiary)
         }
     }
 

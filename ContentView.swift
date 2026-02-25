@@ -121,12 +121,11 @@ private struct GameContentView: View {
     // MARK: - Gradient overlay
 
     private var overlayGradient: some View {
-        let boost: Double = settings.highContrast ? 0.25 : 0
         return VStack(spacing: 0) {
             LinearGradient(
                 colors: [
-                    STTheme.Colors.cosmicDeep.opacity(0.65 + boost),
-                    STTheme.Colors.cosmicDeep.opacity(0.25 + boost),
+                    STTheme.Colors.cosmicDeep.opacity(0.65),
+                    STTheme.Colors.cosmicDeep.opacity(0.25),
                     Color.clear
                 ],
                 startPoint: .top,
@@ -139,8 +138,8 @@ private struct GameContentView: View {
             LinearGradient(
                 colors: [
                     Color.clear,
-                    STTheme.Colors.cosmicDeep.opacity(0.35 + boost),
-                    STTheme.Colors.cosmicDeep.opacity(0.75 + boost)
+                    STTheme.Colors.cosmicDeep.opacity(0.35),
+                    STTheme.Colors.cosmicDeep.opacity(0.75)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -184,21 +183,21 @@ private struct GameContentView: View {
 
                     Text("Semantic Tower")
                         .font(.system(size: settings.largeText ? 26 : 22, weight: .bold, design: .rounded))
-                        .foregroundColor(STTheme.Colors.textPrimary)
+                        .foregroundColor(hcTextPrimary)
                 }
 
                 Text(modeLabel)
                     .font(.system(size: settings.largeText ? 15 : 12, weight: .medium, design: .rounded))
-                    .foregroundColor(STTheme.Colors.textTertiary)
+                    .foregroundColor(hcTextSecondary)
 
                 if let score = controller.lastScore, let word = controller.lastScoredWord {
                     HStack(spacing: 4) {
                         Circle()
                             .fill(rankColor(score.rank))
-                            .frame(width: 6, height: 6)
+                            .frame(width: 8, height: 8)
                         Text("\(rankLabel(score.rank)): \"\(word)\" (\(Int(score.accuracy * 100))%)")
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundColor(STTheme.Colors.textSecondary)
+                            .font(.system(size: settings.largeText ? 14 : 11, weight: .medium, design: .rounded))
+                            .foregroundColor(hcTextSecondary)
                     }
                     .transition(.opacity.combined(with: .scale))
                 }
@@ -220,7 +219,9 @@ private struct GameContentView: View {
                     towerHeight: controller.scene3D.towerHeight,
                     perfectStreak: controller.perfectStreak,
                     isBalanced: isBalanced(controller.scene3D.currentCenterOfMass),
-                    fallCount: controller.fallCount
+                    fallCount: controller.fallCount,
+                    largeText: settings.largeText,
+                    highContrast: settings.highContrast
                 )
             }
         }
@@ -229,6 +230,20 @@ private struct GameContentView: View {
 
     private func isBalanced(_ center: CGPoint) -> Bool {
         hypot(center.x, center.y) < 0.4
+    }
+
+    // MARK: - High Contrast helpers
+
+    private var hcTextPrimary: Color {
+        settings.highContrast ? .white : STTheme.Colors.textPrimary
+    }
+
+    private var hcTextSecondary: Color {
+        settings.highContrast ? .white.opacity(0.90) : STTheme.Colors.textSecondary
+    }
+
+    private var hcTextTertiary: Color {
+        settings.highContrast ? .white.opacity(0.80) : STTheme.Colors.textTertiary
     }
 
     private var modeLabel: String {
@@ -305,8 +320,8 @@ private struct GameContentView: View {
                     TextField("type a word…", text: $controller.wordInput)
                         .textInputAutocapitalization(.never)
                         .disableAutocorrection(true)
-                        .font(.system(size: 15, weight: .medium, design: .rounded))
-                        .foregroundColor(STTheme.Colors.textPrimary)
+                        .font(.system(size: settings.largeText ? 19 : 15, weight: .medium, design: .rounded))
+                        .foregroundColor(hcTextPrimary)
                         .onSubmit { performDrop() }
                 }
                 .padding(.horizontal, 12)
@@ -326,7 +341,7 @@ private struct GameContentView: View {
             if let err = controller.keyboardError {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 11))
+                        .font(.system(size: settings.largeText ? 14 : 11))
                         .foregroundColor(STTheme.Colors.missOrange)
                     Text(err)
                         .font(.system(size: 11, weight: .medium, design: .rounded))
@@ -357,7 +372,7 @@ private struct GameContentView: View {
                         Image(systemName: "arrow.down.circle.fill")
                             .font(.system(size: 14, weight: .semibold))
                         Text("Drop")
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .font(.system(size: settings.largeText ? 17 : 14, weight: .bold, design: .rounded))
                     }
                 }
                 .foregroundColor(STTheme.Colors.cosmicDeep)
