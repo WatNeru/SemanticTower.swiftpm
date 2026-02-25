@@ -434,21 +434,88 @@ private struct GameContentView: View {
     }
 }
 
-// MARK: - Recognition feedback
+// MARK: - Recognition feedback (educational app style)
 
 struct RecognizedTextFeedbackView: View {
     let result: RecognitionResult
+    @State private var revealedCount = 0
 
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(Array(result.text.enumerated()), id: \.offset) { index, char in
-                Text(String(char))
-                    .foregroundColor(result.uncertainCharacterIndices.contains(index)
-                                     ? STTheme.Colors.missRed
-                                     : STTheme.Colors.textPrimary)
-                    .fontWeight(result.uncertainCharacterIndices.contains(index) ? .bold : .regular)
+        VStack(spacing: 6) {
+            HStack(spacing: 1) {
+                ForEach(Array(result.text.enumerated()), id: \.offset) { index, char in
+                    let isUncertain = result.uncertainCharacterIndices.contains(index)
+                    Text(String(char))
+                        .font(.system(size: 20, weight: isUncertain ? .bold : .medium, design: .monospaced))
+                        .foregroundColor(isUncertain ? STTheme.Colors.missOrange : STTheme.Colors.textPrimary)
+                        .padding(.horizontal, 2)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(isUncertain
+                                      ? STTheme.Colors.missOrange.opacity(0.12)
+                                      : Color.clear)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(isUncertain
+                                        ? STTheme.Colors.missOrange.opacity(0.3)
+                                        : Color.clear,
+                                        lineWidth: 1)
+                        )
+                        .opacity(index < revealedCount ? 1.0 : 0.0)
+                        .scaleEffect(index < revealedCount ? 1.0 : 0.5)
+                        .animation(
+                            .spring(response: 0.3, dampingFraction: 0.7)
+                                .delay(Double(index) * 0.05),
+                            value: revealedCount
+                        )
+                }
+            }
+
+            confidenceBar
+        }
+        .onAppear {
+            withAnimation {
+                revealedCount = result.text.count
             }
         }
+    }
+
+    private var confidenceBar: some View {
+        HStack(spacing: 6) {
+            Image(systemName: confidenceIcon)
+                .font(.system(size: 10))
+                .foregroundColor(confidenceColor)
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.1))
+                    Capsule()
+                        .fill(confidenceColor)
+                        .frame(width: max(0, geo.size.width * result.confidence))
+                }
+            }
+            .frame(height: 4)
+
+            Text("\(Int(result.confidence * 100))%")
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .foregroundColor(STTheme.Colors.textTertiary)
+        }
+        .frame(maxWidth: 180)
+    }
+
+    private var confidenceColor: Color {
+        if result.confidence >= 0.8 { return STTheme.Colors.perfectBlue }
+        if result.confidence >= 0.5 { return STTheme.Colors.niceGold }
+        return STTheme.Colors.missOrange
+    }
+
+    private var confidenceIcon: String {
+        if result.confidence >= 0.8 { return "checkmark.circle.fill" }
+        if result.confidence >= 0.5 { return "exclamationmark.circle.fill" }
+        return "xmark.circle.fill"
     }
 }
 

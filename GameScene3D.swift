@@ -80,6 +80,12 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
     private var boardNode: SCNNode
     /// 傾き計算用にスムージングした重心（見かけ上の重心）。実際の重心にゆっくり追従させる。
     private(set) var smoothedCenterOfMass: CGPoint = .zero
+    /// 傾き角度のスプリングアニメーション用: 現在の角速度
+    private var tiltVelocityX: CGFloat = 0
+    private var tiltVelocityZ: CGFloat = 0
+    /// 傾き角度のスプリングアニメーション用: 現在の実際の角度
+    private var currentPitchX: CGFloat = 0
+    private var currentRollZ: CGFloat = 0
 
     /// UI から参照できるプロパティ。
     var currentCenterOfMass: CGPoint { smoothedCenterOfMass }
@@ -380,42 +386,36 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
     }
 
     /// 現在積まれているディスクのセマンティック重心から、盤の傾きを決める。
-    /// 「実際の重心」を直接使わず、過去値との間を補間した `smoothedCenterOfMass` を使って
-    /// 少しずつ傾くようにする。
+    ///
+    /// 3段階のスムージング:
+    ///  1. 重心の低速追従 (alpha = 0.08)
+    ///  2. デッドゾーン: |重心| < 0.15 なら傾きゼロ（書く時間を確保）
+    ///  3. スプリング補間: 角度はバネ的に目標に追従（急変しない）
     private func updateTiltFromDiscs() {
         let activeDiscs = discs.filter { $0.isOnBoard }
         let targetCenter: CGPoint
 
         if activeDiscs.isEmpty {
-            // ディスクが無いときは「重心=原点」をターゲットとし、ゆっくり水平に戻る。
             targetCenter = .zero
         } else {
-            // 個数や重みには依存させず、「幾何学的な中心」だけを見る。
-            // 盤上ディスクの現在の物理位置から、上から見た X/Z を [-1, 1] に正規化して平均する。
             let (sumX, sumY) = activeDiscs.reduce(into: (0.0, 0.0)) { acc, disc in
                 let worldPos = disc.node.presentation.position
-                let worldX = Double(worldPos.x)
-                let worldZ = Double(worldPos.z)
-                // ボード半幅・半奥行きを 2.5 とみなして正規化。
-                let normalizedX = max(-1.0, min(1.0, worldX / 2.5))
-                let normalizedY = max(-1.0, min(1.0, worldZ / 2.5))
+                let normalizedX = max(-1.0, min(1.0, Double(worldPos.x) / 2.5))
+                let normalizedY = max(-1.0, min(1.0, Double(worldPos.z) / 2.5))
                 acc.0 += normalizedX
                 acc.1 += normalizedY
             }
             let count = Double(activeDiscs.count)
-            let centerX = sumX / count
-            let centerY = sumY / count
-            targetCenter = CGPoint(x: centerX, y: centerY)
+            targetCenter = CGPoint(x: sumX / count, y: sumY / count)
         }
 
-        // 0 < alpha < 1: alpha が小さいほど、ゆっくり追従する。
-        let alpha: CGFloat = 0.15
-        smoothedCenterOfMass.x += (targetCenter.x - smoothedCenterOfMass.x) * alpha
-        smoothedCenterOfMass.y += (targetCenter.y - smoothedCenterOfMass.y) * alpha
+        // 1. 重心の低速追従（以前は 0.15、ゆっくりに変更）
+        let comAlpha: CGFloat = 0.08
+        smoothedCenterOfMass.x += (targetCenter.x - smoothedCenterOfMass.x) * comAlpha
+        smoothedCenterOfMass.y += (targetCenter.y - smoothedCenterOfMass.y) * comAlpha
 
         updateBoardTilt(centerOfMass: smoothedCenterOfMass)
         updateTargetMarkerPosition(centerOfMass: smoothedCenterOfMass)
-        // ミニマップ用: ターゲット位置（重心の反対側）を通知
         let targetPos = CGPoint(x: -smoothedCenterOfMass.x, y: -smoothedCenterOfMass.y)
         onTargetPositionUpdated?(targetPos)
     }
@@ -454,18 +454,45 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
     }
 
     /// セマンティック重心に応じて土台の傾き（X/Z軸回転）を更新。
-    /// centerOfMass.x / y はともに [-1, 1] を想定。
-    /// 「ターゲット角度」や補間は使わず、重心に対して即時に角度を決める。
+    ///
+    /// バランスゲームのベストプラクティス:
+    ///  - デッドゾーン: 重心が中心付近なら傾き目標 = 0（プレイヤーに猶予）
+    ///  - 最大傾き 25° に抑える（60° では即座に崩壊するため）
+    ///  - スプリング補間: 角度が急変せず、バネのように自然に追従
+    ///  - ダンピング: 振動を抑えて安定感を出す
     private func updateBoardTilt(centerOfMass: CGPoint) {
-        let maxAngle: CGFloat = .pi / 3  // ≈60度
-        let clampedX = max(-1.0, min(1.0, Double(centerOfMass.x)))
-        let clampedY = max(-1.0, min(1.0, Double(centerOfMass.y)))
+        let maxAngle: CGFloat = .pi / 7.2  // ≈25°
+        let deadZone: CGFloat = 0.15
+        let deltaTime: CGFloat = 0.1
+        let springStiffness: CGFloat = 3.0
+        let damping: CGFloat = 2.8
 
-        let targetRollZ = -CGFloat(clampedX) * maxAngle
-        let targetPitchX = CGFloat(clampedY) * maxAngle
+        // デッドゾーン適用: 中心付近は傾き目標ゼロ
+        func applyDeadZone(_ val: CGFloat) -> CGFloat {
+            let magnitude = abs(val)
+            guard magnitude > deadZone else { return 0 }
+            let effective = (magnitude - deadZone) / (1.0 - deadZone)
+            return val >= 0 ? effective : -effective
+        }
 
-        boardNode.eulerAngles.x = Float(targetPitchX)
-        boardNode.eulerAngles.z = Float(targetRollZ)
+        let effectiveX = applyDeadZone(CGFloat(max(-1, min(1, centerOfMass.x))))
+        let effectiveY = applyDeadZone(CGFloat(max(-1, min(1, centerOfMass.y))))
+
+        let targetRollZ = -effectiveX * maxAngle
+        let targetPitchX = effectiveY * maxAngle
+
+        // スプリング補間: F = -k*(x - target) - d*v
+        let forceX = -springStiffness * (currentPitchX - targetPitchX) - damping * tiltVelocityX
+        let forceZ = -springStiffness * (currentRollZ - targetRollZ) - damping * tiltVelocityZ
+
+        tiltVelocityX += forceX * deltaTime
+        tiltVelocityZ += forceZ * deltaTime
+
+        currentPitchX += tiltVelocityX * deltaTime
+        currentRollZ += tiltVelocityZ * deltaTime
+
+        boardNode.eulerAngles.x = Float(currentPitchX)
+        boardNode.eulerAngles.z = Float(currentRollZ)
     }
 
     // MARK: - SCNPhysicsContactDelegate
