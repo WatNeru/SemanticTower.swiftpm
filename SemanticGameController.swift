@@ -1,8 +1,7 @@
 import Foundation
 import SwiftUI
-import PencilKit
 
-/// 入力モード（仕様: キーボード or 手書き）
+/// 入力モード
 enum InputMode: String, CaseIterable {
     case keyboard = "Keyboard"
     case handwriting = "Handwriting"
@@ -14,18 +13,19 @@ final class SemanticGameController: ObservableObject {
     @Published var wordInput: String = ""
     @Published var isDemoMode: Bool = true
     @Published var inputMode: InputMode = .handwriting
-    @Published var handwritingDrawing: PKDrawing = PKDrawing()
     @Published var lastScore: ScoreResult?
     @Published var lastScoredWord: String?
-    /// 手書き認識結果（赤表示用の uncertain インデックス含む）
     @Published var lastRecognitionResult: RecognitionResult?
     @Published var isRecognizing: Bool = false
     @Published var recognitionError: String?
     @Published var perfectStreak: Int = 0
 
-    /// ミニマップ用: 最適落下位置（セマンティック座標 [-1,1]）
+    // 手書きキャンバス用（UIImage ベース、PencilKit 不要）
+    @Published var handwritingImage: UIImage?
+    @Published var hasHandwritingStrokes: Bool = false
+    @Published var clearCanvasSignal: Bool = false
+
     @Published var targetPosition: CGPoint = .zero
-    /// ミニマップ用: 配置した単語とその時のセマンティック座標（置かれたときの位置）
     @Published var placedWords: [(word: String, position: CGPoint)] = []
 
     let scene3D: GameScene3D
@@ -39,7 +39,6 @@ final class SemanticGameController: ObservableObject {
     ]
     private var demoIndex: Int = 0
 
-    /// 次にドロップされるデモ単語（UI のプレビュー表示用）。
     var nextDemoWord: String {
         guard !demoWords.isEmpty else { return "" }
         return demoWords[demoIndex % demoWords.count]
@@ -87,15 +86,13 @@ final class SemanticGameController: ObservableObject {
             drop(word: trimmed, diskShape: .perfect)
             wordInput = ""
         case .handwriting:
-            // 手書き認識は View から Task { await recognizeAndDrop() } で呼ぶ（Swift 6 並行性）
             break
         }
     }
 
-    /// 手書きを認識してドロップ（Vision + スコア → ディスク形状）
     @MainActor
     func recognizeAndDrop() async {
-        guard !handwritingDrawing.bounds.isEmpty else {
+        guard let image = handwritingImage else {
             recognitionError = "Draw a word first"
             return
         }
@@ -103,9 +100,6 @@ final class SemanticGameController: ObservableObject {
         isRecognizing = true
         recognitionError = nil
         lastRecognitionResult = nil
-
-        let size = CGSize(width: 400, height: 120)
-        let image = HandwritingCanvasView.image(from: handwritingDrawing, size: size)
 
         let result = await HandwritingRecognizer.recognize(from: image)
 
@@ -127,13 +121,18 @@ final class SemanticGameController: ObservableObject {
         lastScoredWord = rec.text
 
         drop(word: rec.text, diskShape: DiskShape.from(scoreRank: score.rank))
-        handwritingDrawing = PKDrawing()
+        clearHandwriting()
     }
 
     func clearHandwriting() {
-        handwritingDrawing = PKDrawing()
+        clearCanvasSignal = true
+        handwritingImage = nil
+        hasHandwritingStrokes = false
         recognitionError = nil
         lastRecognitionResult = nil
+        DispatchQueue.main.async { [weak self] in
+            self?.clearCanvasSignal = false
+        }
     }
 
     private func drop(word: String, diskShape: DiskShape) {
@@ -146,11 +145,6 @@ final class SemanticGameController: ObservableObject {
 
         let baseMass = max(0.5, min(3.0, Double(lowercased.count) / 3.0))
 
-        let xStr = String(format: "%.3f", semanticPos.x)
-        let yStr = String(format: "%.3f", semanticPos.y)
-        let massStr = String(format: "%.2f", baseMass)
-        print("[Drop] word=\"\(word)\", semantic=(x=\(xStr), y=\(yStr)), mass=\(massStr), shape=\(diskShape)")
-
         let diskColor = SemanticColorHelper.color(for: semanticPos.x, semanticY: semanticPos.y)
         scene3D.addDisc(
             atSemanticPosition: semanticPos,
@@ -161,7 +155,6 @@ final class SemanticGameController: ObservableObject {
         )
         placedWords.append((word: lowercased, position: semanticPos))
         updateStreak(diskShape: diskShape)
-
         SoundEngine.shared.playDrop()
     }
 

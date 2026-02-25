@@ -1,71 +1,137 @@
 import SwiftUI
-import PencilKit
+import UIKit
 
-/// PencilKit 手書き入力キャンバス。
-/// 角丸・背景は UIKit 側で設定し、SwiftUI の clipShape を使わない。
-/// これにより PKCanvasView の内部描画レイヤが確実に表示される。
-struct HandwritingCanvasView: UIViewRepresentable {
-    @Binding var drawing: PKDrawing
+// MARK: - UIKit Drawing View (finger-friendly, no PencilKit dependency)
 
-    func makeUIView(context: Context) -> PKCanvasView {
-        let canvas = PKCanvasView()
-        canvas.delegate = context.coordinator
-        canvas.drawingPolicy = .anyInput
-        canvas.allowsFingerDrawing = true
-        canvas.backgroundColor = .white
-        canvas.isOpaque = true
-        canvas.tool = PKInkingTool(.pen, color: .black, width: 4)
-        canvas.isScrollEnabled = false
-        canvas.showsVerticalScrollIndicator = false
-        canvas.showsHorizontalScrollIndicator = false
-        canvas.isMultipleTouchEnabled = true
-        canvas.isUserInteractionEnabled = true
-        canvas.layer.cornerRadius = 14
-        canvas.layer.masksToBounds = true
-        canvas.overrideUserInterfaceStyle = .light
-        return canvas
+/// 指で文字を書くための UIView。UIBezierPath + Core Graphics で描画。
+/// PencilKit の SwiftUI 統合問題を回避するために自前実装。
+final class FingerDrawView: UIView {
+    var onDrawingChanged: ((UIImage?) -> Void)?
+
+    private var path = UIBezierPath()
+    private var cachedImage: UIImage?
+    private let strokeColor: UIColor = .black
+    private let strokeWidth: CGFloat = 4.0
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .white
+        isMultipleTouchEnabled = false
+        isUserInteractionEnabled = true
+        layer.cornerRadius = 14
+        layer.masksToBounds = true
+        path.lineWidth = strokeWidth
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
     }
 
-    func updateUIView(_ uiView: PKCanvasView, context: Context) {
-        guard !context.coordinator.isUpdating else { return }
-        if uiView.drawing.dataRepresentation() != drawing.dataRepresentation() {
-            uiView.drawing = drawing
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func draw(_ rect: CGRect) {
+        cachedImage?.draw(in: rect)
+        strokeColor.setStroke()
+        path.stroke()
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let point = touches.first?.location(in: self) else { return }
+        path.move(to: point)
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let point = touches.first?.location(in: self) else { return }
+        path.addLine(to: point)
+        setNeedsDisplay()
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        flushPathToImage()
+        onDrawingChanged?(snapshot())
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        flushPathToImage()
+        onDrawingChanged?(snapshot())
+    }
+
+    func clear() {
+        path.removeAllPoints()
+        cachedImage = nil
+        setNeedsDisplay()
+        onDrawingChanged?(nil)
+    }
+
+    /// 現在の描画内容が空かどうか
+    var isEmpty: Bool {
+        cachedImage == nil && path.isEmpty
+    }
+
+    /// 白背景に黒線の画像を返す（Vision 認識用）
+    func snapshot() -> UIImage? {
+        guard !isEmpty else { return nil }
+        let renderer = UIGraphicsImageRenderer(bounds: bounds)
+        return renderer.image { ctx in
+            UIColor.white.setFill()
+            ctx.fill(bounds)
+            cachedImage?.draw(in: bounds)
+            strokeColor.setStroke()
+            path.stroke()
+        }
+    }
+
+    private func flushPathToImage() {
+        let renderer = UIGraphicsImageRenderer(bounds: bounds)
+        cachedImage = renderer.image { ctx in
+            UIColor.white.setFill()
+            ctx.fill(bounds)
+            cachedImage?.draw(in: bounds)
+            strokeColor.setStroke()
+            path.stroke()
+        }
+        path.removeAllPoints()
+    }
+}
+
+// MARK: - SwiftUI Wrapper
+
+struct HandwritingCanvasView: UIViewRepresentable {
+    @Binding var drawingImage: UIImage?
+    @Binding var hasStrokes: Bool
+    var clearSignal: Bool
+
+    func makeUIView(context: Context) -> FingerDrawView {
+        let view = FingerDrawView()
+        view.onDrawingChanged = { image in
+            DispatchQueue.main.async {
+                context.coordinator.updateDrawing(image: image)
+            }
+        }
+        return view
+    }
+
+    func updateUIView(_ uiView: FingerDrawView, context: Context) {
+        if clearSignal && !uiView.isEmpty {
+            uiView.clear()
         }
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(drawing: $drawing)
+        Coordinator(drawingImage: $drawingImage, hasStrokes: $hasStrokes)
     }
 
-    final class Coordinator: NSObject, PKCanvasViewDelegate {
-        @Binding var drawing: PKDrawing
-        var isUpdating = false
+    final class Coordinator {
+        @Binding var drawingImage: UIImage?
+        @Binding var hasStrokes: Bool
 
-        init(drawing: Binding<PKDrawing>) {
-            _drawing = drawing
+        init(drawingImage: Binding<UIImage?>, hasStrokes: Binding<Bool>) {
+            _drawingImage = drawingImage
+            _hasStrokes = hasStrokes
         }
 
-        func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
-            isUpdating = true
-            DispatchQueue.main.async { [weak self] in
-                self?.drawing = canvasView.drawing
-                self?.isUpdating = false
-            }
-        }
-    }
-}
-
-// MARK: - Vision input image
-
-extension HandwritingCanvasView {
-    static func image(from drawing: PKDrawing, size: CGSize, scale: CGFloat = 2.0) -> UIImage {
-        let rect = CGRect(origin: .zero, size: size)
-        let img = drawing.image(from: rect, scale: scale)
-        let renderer = UIGraphicsImageRenderer(size: size)
-        return renderer.image { ctx in
-            UIColor.white.setFill()
-            ctx.fill(rect)
-            img.draw(in: rect)
+        func updateDrawing(image: UIImage?) {
+            drawingImage = image
+            hasStrokes = image != nil
         }
     }
 }
@@ -84,53 +150,48 @@ struct HandwritingInputPanel: View {
         }
     }
 
-    // MARK: - Canvas
-
     private var canvasArea: some View {
-        HandwritingCanvasView(drawing: $controller.handwritingDrawing)
-            .disabled(controller.isDemoMode)
-            .frame(height: 120)
-            .overlay(alignment: .center) {
-                if controller.handwritingDrawing.bounds.isEmpty && !controller.isDemoMode {
-                    Text("Write a word here")
-                        .font(.system(size: 18, weight: .medium, design: .rounded))
-                        .foregroundColor(.gray.opacity(0.35))
-                        .allowsHitTesting(false)
-                }
-            }
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(Color.gray.opacity(0.12))
-                    .frame(height: 1)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 34)
+        HandwritingCanvasView(
+            drawingImage: $controller.handwritingImage,
+            hasStrokes: $controller.hasHandwritingStrokes,
+            clearSignal: controller.clearCanvasSignal
+        )
+        .disabled(controller.isDemoMode)
+        .frame(height: 120)
+        .overlay(alignment: .center) {
+            if !controller.hasHandwritingStrokes && !controller.isDemoMode {
+                Text("Write a word here")
+                    .font(.system(size: 18, weight: .medium, design: .rounded))
+                    .foregroundColor(.gray.opacity(0.35))
                     .allowsHitTesting(false)
             }
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(canvasBorderColor, lineWidth: 1.5)
-                    .allowsHitTesting(false)
-            )
+        }
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.gray.opacity(0.12))
+                .frame(height: 1)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 34)
+                .allowsHitTesting(false)
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(canvasBorderColor, lineWidth: 1.5)
+                .allowsHitTesting(false)
+        )
     }
 
     private var canvasBorderColor: Color {
-        if controller.isRecognizing {
-            return STTheme.Colors.accentCyan
-        }
-        if controller.handwritingDrawing.bounds.isEmpty {
-            return Color.gray.opacity(0.2)
-        }
+        if controller.isRecognizing { return STTheme.Colors.accentCyan }
+        if !controller.hasHandwritingStrokes { return Color.gray.opacity(0.2) }
         return STTheme.Colors.accentCyan.opacity(0.5)
     }
-
-    // MARK: - Recognition feedback
 
     @ViewBuilder
     private var recognitionFeedback: some View {
         if controller.isRecognizing {
             HStack(spacing: 8) {
-                ProgressView()
-                    .scaleEffect(0.8)
+                ProgressView().scaleEffect(0.8)
                 Text("Recognizing…")
                     .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundColor(STTheme.Colors.textTertiary)
@@ -149,8 +210,6 @@ struct HandwritingInputPanel: View {
         }
     }
 
-    // MARK: - Controls
-
     private var controlBar: some View {
         HStack(spacing: 10) {
             Button {
@@ -163,7 +222,7 @@ struct HandwritingInputPanel: View {
                     .padding(.vertical, 8)
                     .glassCard(cornerRadius: 10, opacity: 0.10)
             }
-            .disabled(controller.isDemoMode || controller.handwritingDrawing.bounds.isEmpty)
+            .disabled(controller.isDemoMode || !controller.hasHandwritingStrokes)
 
             Spacer()
 
@@ -185,15 +244,13 @@ struct HandwritingInputPanel: View {
                 .foregroundColor(STTheme.Colors.cosmicDeep)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
-                .background(
-                    Capsule().fill(STTheme.Colors.accentCyan)
-                )
+                .background(Capsule().fill(STTheme.Colors.accentCyan))
                 .glow(STTheme.Colors.accentCyan, radius: 4)
             }
             .disabled(
                 controller.isDemoMode
                 || controller.isRecognizing
-                || controller.handwritingDrawing.bounds.isEmpty
+                || !controller.hasHandwritingStrokes
             )
         }
     }

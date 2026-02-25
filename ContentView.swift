@@ -339,7 +339,7 @@ private struct GameContentView: View {
         if controller.isDemoMode { return false }
         if controller.isRecognizing { return true }
         if controller.inputMode == .handwriting {
-            return controller.handwritingDrawing.bounds.isEmpty
+            return !controller.hasHandwritingStrokes
         }
         return false
     }
