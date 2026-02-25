@@ -487,8 +487,9 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
     }
 
     // MARK: - SCNPhysicsContactDelegate
-    // SceneKit はレンダリングスレッドからデリゲートを呼ぶため、
-    // nonisolated にして状態変更は DispatchQueue.main.async で安全に実行。
+    // SceneKit はレンダリングスレッドからデリゲートを呼ぶ。
+    // Swift 6 では SCNNode を別スレッドに送れないため、
+    // コールバック内で直接処理する（SceneKit 内部で同期済み）。
 
     nonisolated func physicsWorld(
         _ world: SCNPhysicsWorld,
@@ -496,7 +497,6 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
     ) {
         let nodeA = contact.nodeA
         let nodeB = contact.nodeB
-        let contactPoint = contact.contactPoint
 
         let categoryA = nodeA.physicsBody?.categoryBitMask ?? 0
         let categoryB = nodeB.physicsBody?.categoryBitMask ?? 0
@@ -504,8 +504,18 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
         if (categoryA == PhysicsCategory.disc && categoryB == PhysicsCategory.board) ||
             (categoryA == PhysicsCategory.board && categoryB == PhysicsCategory.disc) {
             let discNode = categoryA == PhysicsCategory.disc ? nodeA : nodeB
-            DispatchQueue.main.async { [weak self] in
-                self?.handleDiscBoardContact(discNode: discNode, contactPoint: contactPoint)
+            let localPoint = boardNode.presentation.convertPosition(contact.contactPoint, from: nil)
+            let (_, maxBounds) = boardNode.boundingBox
+            if localPoint.y < maxBounds.y - 0.02 { return }
+
+            if let index = discs.firstIndex(where: { $0.node === discNode }) {
+                discNode.physicsBody?.velocity = SCNVector3Zero
+                discNode.physicsBody?.angularVelocity = SCNVector4Zero
+                let wasOffBoard = !discs[index].isOnBoard
+                discs[index].isOnBoard = true
+                if wasOffBoard {
+                    SoundEngine.shared.playLand()
+                }
             }
             return
         }
@@ -513,37 +523,12 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
         if (categoryA == PhysicsCategory.disc && categoryB == PhysicsCategory.floor) ||
             (categoryA == PhysicsCategory.floor && categoryB == PhysicsCategory.disc) {
             let discNode = categoryA == PhysicsCategory.disc ? nodeA : nodeB
-            DispatchQueue.main.async { [weak self] in
-                self?.handleDiscFloorContact(discNode: discNode)
+            if let index = discs.firstIndex(where: { $0.node === discNode }) {
+                discs.remove(at: index)
             }
+            discNode.removeFromParentNode()
             return
         }
-    }
-
-    private func handleDiscBoardContact(discNode: SCNNode, contactPoint: SCNVector3) {
-        let localPoint = boardNode.presentation.convertPosition(contactPoint, from: nil)
-        let (_, maxBounds) = boardNode.boundingBox
-        let topY = maxBounds.y
-        let epsilon: Float = 0.02
-        if localPoint.y < topY - epsilon { return }
-
-        if let index = discs.firstIndex(where: { $0.node === discNode }) {
-            if let body = discNode.physicsBody {
-                body.velocity = SCNVector3Zero
-                body.angularVelocity = SCNVector4Zero
-            }
-            if !discs[index].isOnBoard {
-                SoundEngine.shared.playLand()
-            }
-            discs[index].isOnBoard = true
-        }
-    }
-
-    private func handleDiscFloorContact(discNode: SCNNode) {
-        if let index = discs.firstIndex(where: { $0.node === discNode }) {
-            discs.remove(at: index)
-        }
-        discNode.removeFromParentNode()
     }
 }
 
