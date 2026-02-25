@@ -76,12 +76,15 @@ struct BalanceIndicator: View {
     private var axisLabels: some View {
         ZStack {
             Text("N").position(x: indicatorSize - 10, y: indicatorSize / 2)
+                .foregroundColor(STTheme.Colors.perfectBlue)
             Text("M").position(x: 10, y: indicatorSize / 2)
-            Text("L").position(x: indicatorSize / 2, y: indicatorSize - 10)
-            Text("O").position(x: indicatorSize / 2, y: 10)
+                .foregroundColor(STTheme.Colors.nebulaPurple)
+            Text("L").position(x: indicatorSize / 2, y: 10)
+                .foregroundColor(STTheme.Colors.accentGold)
+            Text("O").position(x: indicatorSize / 2, y: indicatorSize - 10)
+                .foregroundColor(STTheme.Colors.accentCyan)
         }
         .font(.system(size: 7, weight: .bold, design: .monospaced))
-        .foregroundColor(STTheme.Colors.textTertiary)
     }
 
     private var balanceDot: some View {
@@ -90,7 +93,7 @@ struct BalanceIndicator: View {
         let clampedY = max(-1, min(1, centerOfMass.y))
 
         let dotX = indicatorSize / 2 + clampedX * halfSize
-        let dotY = indicatorSize / 2 + clampedY * halfSize
+        let dotY = indicatorSize / 2 - clampedY * halfSize
 
         let dangerLevel = hypot(clampedX, clampedY)
         let dotColor: Color = dangerLevel > 0.7
