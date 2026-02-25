@@ -268,10 +268,16 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
         let startY: Float = 4.0
         node.position = SCNVector3(localX, startY, localZ)
 
-        // SCNShape の複雑なジオメトリから物理形状を自動生成するとクラッシュするため、
-        // シンプルな円柱を衝突形状として明示的に指定する。
-        let collisionCylinder = SCNCylinder(radius: shapeRadius, height: extrusionDepth)
-        let physicsShape = SCNPhysicsShape(geometry: collisionCylinder, options: nil)
+        // 衝突形状: ビジュアルと同じ向き（水平）にした円柱から生成。
+        // SCNPhysicsShape(node:) はノードの transform を反映するため、
+        // 回転済みヘルパーノードを使って正しい向きの convex hull を得る。
+        let collisionGeometry = SCNCylinder(radius: shapeRadius, height: extrusionDepth)
+        let collisionHelper = SCNNode(geometry: collisionGeometry)
+        collisionHelper.eulerAngles.x = -.pi / 2
+        let physicsShape = SCNPhysicsShape(
+            node: collisionHelper,
+            options: [.type: SCNPhysicsShape.ShapeType.convexHull]
+        )
         let body = SCNPhysicsBody(type: .dynamic, shape: physicsShape)
         body.mass = CGFloat(mass)
         body.restitution = PhysicsConfig.restitution
