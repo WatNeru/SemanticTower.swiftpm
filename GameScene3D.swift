@@ -74,7 +74,7 @@ private enum PhysicsConfig {
 /// タワーの土台を3Dで表現するシーン。
 /// セマンティック重心に応じてボードを傾ける。
 /// ドロップ系物理: kinematic ボード + dynamic ディスク、高摩擦・低反発でスタッキング安定化。
-final class GameScene3D: NSObject, @preconcurrency SCNPhysicsContactDelegate {
+final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendable {
     let scene: SCNScene
     let cameraNode: SCNNode
     private var boardNode: SCNNode
