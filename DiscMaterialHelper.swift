@@ -3,8 +3,21 @@ import SceneKit
 import UIKit
 #endif
 
-/// SCNShape / SCNCylinder にマテリアルを割り当てるヘルパー。
+/// SCNCylinder / SCNShape にマテリアルを割り当てるヘルパー。
 enum DiscMaterialHelper {
+
+    /// SCNCylinder 用: マテリアル配列 [側面, 天面, 底面]
+    static func applyToCylinder(
+        geometry: SCNCylinder,
+        baseColor: PlatformColor,
+        diskShape: DiskShape,
+        topTexture: UIImage
+    ) {
+        let sideMat = makeSideMaterial(color: baseColor, diskShape: diskShape)
+        let topMat = makeFaceMaterial(texture: topTexture, diskShape: diskShape)
+        let bottomMat = makeSideMaterial(color: baseColor, diskShape: diskShape)
+        geometry.materials = [sideMat, topMat, bottomMat]
+    }
 
     /// SCNShape 用: マテリアル配列 [front, back, side, chamfer]
     static func applyToShape(
@@ -17,7 +30,6 @@ enum DiscMaterialHelper {
         let backMat = makeSideMaterial(color: baseColor, diskShape: diskShape)
         let sideMat = makeSideMaterial(color: baseColor, diskShape: diskShape)
         let chamferMat = makeChamferMaterial(color: baseColor, diskShape: diskShape)
-
         geometry.materials = [frontMat, backMat, sideMat, chamferMat]
     }
 

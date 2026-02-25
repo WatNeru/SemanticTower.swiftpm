@@ -222,14 +222,12 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
         word: String = "",
         diskShape: DiskShape = .perfect
     ) {
-        let shapeRadius: CGFloat = 0.3
-        let extrusionDepth: CGFloat = 0.18
+        let baseRadius: CGFloat = 0.3
+        let height: CGFloat = 0.2
 
         let shapeType = DiscShapeType.shape(for: word)
-        let bezierPath = shapeType.bezierPath(radius: shapeRadius)
 
-        let geometry = SCNShape(path: bezierPath, extrusionDepth: extrusionDepth)
-        geometry.chamferRadius = 0.02
+        let geometry = SCNCylinder(radius: baseRadius, height: height)
 
         let texture = DiscTextureGenerator.generate(
             word: word,
@@ -237,11 +235,11 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
             diskShape: diskShape,
             shapeType: shapeType
         )
-        DiscMaterialHelper.applyToShape(
+        DiscMaterialHelper.applyToCylinder(
             geometry: geometry,
             baseColor: color,
             diskShape: diskShape,
-            faceTexture: texture
+            topTexture: texture
         )
 
         let node = SCNNode(geometry: geometry)
@@ -250,35 +248,18 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
         case .perfect:
             break
         case .nice:
-            node.scale = SCNVector3(1.12, 1.0, 0.90)
+            node.scale = SCNVector3(1.15, 1.0, 0.88)
         case .miss:
-            node.scale = SCNVector3(1.20, 1.0, 0.80)
+            node.scale = SCNVector3(1.25, 1.0, 0.75)
         }
 
-        // SCNShape は XY 平面上に生成されるので、水平に回転
-        node.eulerAngles.x = -.pi / 2
-
-        // ボードは width=6, length=6 (半幅 3)。
-        // セマンティック座標 [-1, 1] はすでに非線形スプレッド済みなので
-        // ボード内に収まるようマッピングするだけ。
         let localX = Float(max(-1.0, min(1.0, position.x))) * 2.6
         let localZ = Float(max(-1.0, min(1.0, position.y))) * 2.6
 
-        // 上の方から自由落下させるため、Y を高めに設定。
         let startY: Float = 4.0
         node.position = SCNVector3(localX, startY, localZ)
 
-        // 衝突形状: ビジュアルと同じ向き（水平）にした円柱から生成。
-        // SCNPhysicsShape(node:) はノードの transform を反映するため、
-        // 回転済みヘルパーノードを使って正しい向きの convex hull を得る。
-        let collisionGeometry = SCNCylinder(radius: shapeRadius, height: extrusionDepth)
-        let collisionHelper = SCNNode(geometry: collisionGeometry)
-        collisionHelper.eulerAngles.x = -.pi / 2
-        let physicsShape = SCNPhysicsShape(
-            node: collisionHelper,
-            options: [.type: SCNPhysicsShape.ShapeType.convexHull]
-        )
-        let body = SCNPhysicsBody(type: .dynamic, shape: physicsShape)
+        let body = SCNPhysicsBody.dynamic()
         body.mass = CGFloat(mass)
         body.restitution = PhysicsConfig.restitution
         body.friction = PhysicsConfig.friction
