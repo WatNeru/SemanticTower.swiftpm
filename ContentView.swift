@@ -211,11 +211,11 @@ private struct GameContentView: View {
             VStack(spacing: 8) {
                 BalanceIndicator(
                     centerOfMass: controller.scene3D.currentCenterOfMass,
-                    discCount: controller.scene3D.activeDiscCount
+                    discCount: controller.placedWords.count
                 )
 
                 GameStatsView(
-                    discCount: controller.scene3D.activeDiscCount,
+                    discCount: controller.placedWords.count,
                     towerHeight: controller.scene3D.towerHeight,
                     perfectStreak: controller.perfectStreak,
                     isBalanced: isBalanced(controller.scene3D.currentCenterOfMass),
