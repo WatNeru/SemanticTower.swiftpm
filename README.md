@@ -14,7 +14,8 @@ A word-based physics stacking game where words are positioned on a 3D board by t
 
 | Resource | Method | File |
 |---|---|---|
-| **Disc textures** (word labels) | `UIGraphicsImageRenderer` — circular textures with text, rings, and color based on semantic position | `DiscTextureGenerator.swift` |
+| **Disc textures** (word labels + icons) | `UIGraphicsImageRenderer` — circular textures with SF Symbol / Emoji icon, word text, rings, and color based on semantic position | `DiscTextureGenerator.swift`, `WordIconMapper.swift` |
+| **Word icons** (140+ mappings) | SF Symbols (Apple built-in, `UIImage(systemName:)`) for most words; System Emoji rendered as `NSAttributedString` for words without SF Symbol coverage (e.g. 🦁🐋🤖🪨) | `WordIconMapper.swift` |
 | **Sound effects** (drop, land, score chimes) | `AVAudioEngine` + `AVAudioPCMBuffer` — sine wave synthesis with FM modulation, envelopes, and chords | `SoundEngine.swift` |
 | **3D scene** (board, floor, lighting) | SceneKit primitives with PBR materials | `GameScene3D.swift` |
 | **Sky gradient** | `UIGraphicsImageRenderer` + `CGGradient` | `GameScene3D.swift` |

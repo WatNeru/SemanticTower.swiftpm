@@ -1,15 +1,9 @@
 import UIKit
 
 /// ディスク天面用のテクスチャ画像をプログラム生成。
-/// 外部画像アセット不要。SSC 25MB 制限に影響しない。
+/// 外部画像アセット不要。SF Symbols と Emoji は OS 内蔵。
 enum DiscTextureGenerator {
 
-    /// セマンティック座標に基づく色とテキストを含む円形テクスチャを生成。
-    /// - Parameters:
-    ///   - word: ディスクに刻む単語
-    ///   - baseColor: ベースカラー（SemanticColorHelper から）
-    ///   - diskShape: Perfect/Nice/Miss で質感を変える
-    /// - Returns: 円形テクスチャの UIImage (256x256)
     static func generate(
         word: String,
         baseColor: UIColor,
@@ -24,21 +18,20 @@ enum DiscTextureGenerator {
             let center = CGPoint(x: size.width / 2, y: size.height / 2)
             let radius = size.width / 2
 
-            // 円形クリッピング
             cgCtx.addEllipse(in: rect)
             cgCtx.clip()
 
-            // ベースカラーで塗りつぶし
             cgCtx.setFillColor(baseColor.cgColor)
             cgCtx.fill(rect)
 
-            // リング（縁取り）
             drawRing(cgCtx: cgCtx, center: center, radius: radius, diskShape: diskShape)
 
-            // 中央にテキスト
+            drawIcon(word: word, in: rect, diskShape: diskShape)
             drawWord(word, in: rect, diskShape: diskShape)
         }
     }
+
+    // MARK: - Ring decoration
 
     private static func drawRing(
         cgCtx: CGContext,
@@ -71,17 +64,39 @@ enum DiscTextureGenerator {
         )
         cgCtx.strokeEllipse(in: innerRect)
 
-        // Perfect には二重リングを追加
         if diskShape == .perfect {
-            let innerRing = innerRect.insetBy(dx: 12, dy: 12)
+            let secondRing = innerRect.insetBy(dx: 12, dy: 12)
             cgCtx.setLineWidth(2)
             cgCtx.setStrokeColor(UIColor.white.withAlphaComponent(0.15).cgColor)
-            cgCtx.strokeEllipse(in: innerRing)
+            cgCtx.strokeEllipse(in: secondRing)
         }
     }
 
+    // MARK: - Icon (SF Symbol or Emoji)
+
+    private static func drawIcon(word: String, in rect: CGRect, diskShape: DiskShape) {
+        let iconAlpha: CGFloat = diskShape == .miss ? 0.5 : 0.85
+        let iconSize: CGFloat = 64
+
+        guard let iconImage = WordIconMapper.renderIcon(
+            for: word,
+            size: iconSize,
+            color: UIColor.white.withAlphaComponent(iconAlpha)
+        ) else { return }
+
+        let iconRect = CGRect(
+            x: (rect.width - iconSize) / 2,
+            y: rect.height * 0.18,
+            width: iconSize,
+            height: iconSize
+        )
+        iconImage.draw(in: iconRect)
+    }
+
+    // MARK: - Word text
+
     private static func drawWord(_ word: String, in rect: CGRect, diskShape: DiskShape) {
-        let maxFontSize: CGFloat = word.count <= 4 ? 48 : word.count <= 7 ? 36 : 28
+        let maxFontSize: CGFloat = word.count <= 4 ? 36 : word.count <= 7 ? 28 : 22
         let font = UIFont.systemFont(ofSize: maxFontSize, weight: .bold)
         let textColor: UIColor
 
@@ -106,7 +121,7 @@ enum DiscTextureGenerator {
         let textSize = (word as NSString).size(withAttributes: attributes)
         let textRect = CGRect(
             x: (rect.width - textSize.width) / 2,
-            y: (rect.height - textSize.height) / 2,
+            y: rect.height * 0.62,
             width: textSize.width,
             height: textSize.height
         )
