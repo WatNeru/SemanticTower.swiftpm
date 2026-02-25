@@ -156,10 +156,9 @@ struct HandwritingInputPanel: View {
             hasStrokes: $controller.hasHandwritingStrokes,
             clearSignal: controller.clearCanvasSignal
         )
-        .disabled(controller.isDemoMode)
         .frame(height: 120)
         .overlay(alignment: .center) {
-            if !controller.hasHandwritingStrokes && !controller.isDemoMode {
+            if !controller.hasHandwritingStrokes {
                 Text("Write a word here")
                     .font(.system(size: 18, weight: .medium, design: .rounded))
                     .foregroundColor(.gray.opacity(0.35))
@@ -222,7 +221,7 @@ struct HandwritingInputPanel: View {
                     .padding(.vertical, 8)
                     .glassCard(cornerRadius: 10, opacity: 0.10)
             }
-            .disabled(controller.isDemoMode || !controller.hasHandwritingStrokes)
+            .disabled(!controller.hasHandwritingStrokes)
 
             Spacer()
 
@@ -248,8 +247,7 @@ struct HandwritingInputPanel: View {
                 .glow(STTheme.Colors.accentCyan, radius: 4)
             }
             .disabled(
-                controller.isDemoMode
-                || controller.isRecognizing
+                controller.isRecognizing
                 || !controller.hasHandwritingStrokes
             )
         }

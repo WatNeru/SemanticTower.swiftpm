@@ -205,12 +205,9 @@ private struct GameContentView: View {
     }
 
     private var modeLabel: String {
-        if controller.isDemoMode {
-            return "Demo mode — preset words"
-        }
         switch controller.inputMode {
-        case .keyboard: return "Manual — type any word"
-        case .handwriting: return "Manual — draw with Pencil"
+        case .keyboard: return "Type any word"
+        case .handwriting: return "Draw any word"
         }
     }
 
@@ -228,15 +225,13 @@ private struct GameContentView: View {
 
     private var inputArea: some View {
         VStack(spacing: 10) {
-            if !controller.isDemoMode {
-                Picker("Input", selection: $controller.inputMode) {
-                    ForEach(InputMode.allCases, id: \.self) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
+            Picker("Input", selection: $controller.inputMode) {
+                ForEach(InputMode.allCases, id: \.self) { mode in
+                    Text(mode.rawValue).tag(mode)
                 }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 4)
             }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 4)
 
             switch controller.inputMode {
             case .keyboard:
@@ -261,10 +256,7 @@ private struct GameContentView: View {
                     .textInputAutocapitalization(.never)
                     .disableAutocorrection(true)
                     .font(.system(size: 15, weight: .medium, design: .rounded))
-                    .foregroundColor(controller.isDemoMode
-                                     ? STTheme.Colors.textTertiary
-                                     : STTheme.Colors.textPrimary)
-                    .disabled(controller.isDemoMode)
+                    .foregroundColor(STTheme.Colors.textPrimary)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
@@ -314,29 +306,10 @@ private struct GameContentView: View {
                 .glow(STTheme.Colors.accentCyan, radius: 4)
             }
             .disabled(isDropDisabled)
-
-            Button {
-                withAnimation(.spring(response: 0.3)) {
-                    controller.isDemoMode.toggle()
-                }
-            } label: {
-                VStack(spacing: 1) {
-                    Image(systemName: controller.isDemoMode ? "play.circle.fill" : "keyboard")
-                        .font(.system(size: 16))
-                    Text(controller.isDemoMode ? "Demo" : "Manual")
-                        .font(.system(size: 9, weight: .semibold, design: .rounded))
-                }
-                .foregroundColor(controller.isDemoMode
-                                 ? STTheme.Colors.accentGold
-                                 : STTheme.Colors.accentCyan)
-                .frame(width: 46, height: 42)
-                .glassCard(cornerRadius: 12, opacity: 0.10)
-            }
         }
     }
 
     private var isDropDisabled: Bool {
-        if controller.isDemoMode { return false }
         if controller.isRecognizing { return true }
         if controller.inputMode == .handwriting {
             return !controller.hasHandwritingStrokes
@@ -345,21 +318,14 @@ private struct GameContentView: View {
     }
 
     private func performDrop() {
-        if controller.isDemoMode {
-            lastDroppedWord = controller.nextDemoWord
-            controller.dropCurrentWord()
-            feedbackID = UUID()
-            showDropFeedback = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                showDropFeedback = false
-            }
-        } else if controller.inputMode == .handwriting {
+        if controller.inputMode == .handwriting {
             Task { @MainActor in
                 await controller.recognizeAndDrop()
                 playScoreSound(controller.lastScore)
             }
             feedbackID = UUID()
         } else {
+            lastDroppedWord = controller.wordInput
             controller.dropCurrentWord()
             feedbackID = UUID()
             playScoreSound(controller.lastScore)

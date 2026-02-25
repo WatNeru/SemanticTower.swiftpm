@@ -11,7 +11,6 @@ enum InputMode: String, CaseIterable {
 @MainActor
 final class SemanticGameController: ObservableObject {
     @Published var wordInput: String = ""
-    @Published var isDemoMode: Bool = true
     @Published var inputMode: InputMode = .handwriting
     @Published var lastScore: ScoreResult?
     @Published var lastScoredWord: String?
@@ -30,20 +29,6 @@ final class SemanticGameController: ObservableObject {
 
     let scene3D: GameScene3D
     private let manager: SemanticEmbeddingManager
-    let demoWords: [String] = [
-        "dog", "cat", "lion",
-        "tree", "river", "forest",
-        "car", "robot", "computer",
-        "stone", "chair", "phone",
-        "happy", "sad", "freedom"
-    ]
-    private var demoIndex: Int = 0
-
-    var nextDemoWord: String {
-        guard !demoWords.isEmpty else { return "" }
-        return demoWords[demoIndex % demoWords.count]
-    }
-
     init() {
         scene3D = GameScene3D()
 
@@ -71,14 +56,6 @@ final class SemanticGameController: ObservableObject {
     }
 
     func dropCurrentWord() {
-        if isDemoMode {
-            guard !demoWords.isEmpty else { return }
-            let word = demoWords[demoIndex % demoWords.count]
-            demoIndex += 1
-            drop(word: word, diskShape: .perfect)
-            return
-        }
-
         switch inputMode {
         case .keyboard:
             let trimmed = wordInput.trimmingCharacters(in: .whitespacesAndNewlines)

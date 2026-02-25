@@ -28,8 +28,8 @@ struct OnboardingView: View {
         OnboardingPage(
             icon: "gamecontroller",
             title: "Let's Play",
-            subtitle: "Demo or Manual mode",
-            description: "Try Demo mode with preset words, or\nswitch to Manual to type or draw any word.\nBuild the tallest tower you can!",
+            subtitle: "Type or draw any word",
+            description: "Type any word or draw it by hand.\nPlace words by meaning and\nbuild the tallest, most balanced tower!",
             accentColor: STTheme.Colors.accentPink
         )
     ]
