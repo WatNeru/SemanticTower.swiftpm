@@ -113,11 +113,22 @@ struct SemanticEmbeddingManager {
 
     // MARK: - Private helpers
 
-    /// 類似度差分（理論値はおよそ `[-2, 2]`）を `[-1, 1]` に収める。
-    private func normalizeDifference(_ value: Double, maxMagnitude: Double = 2.0) -> Double {
+    /// 類似度差分を `[-1, 1]` に変換し、中心集中を緩和する。
+    ///
+    /// 実測ではコサイン類似度の差分は ±0.3 前後に収まるため、
+    /// `maxMagnitude` を実態に合わせて小さく設定（0.5）。
+    /// さらに符号付きべき乗 `sign(x) * |x|^exponent` で
+    /// 中心付近の微小値を外側に自然に引き伸ばす。
+    /// exponent < 1 ほど散りが強くなる。0.55 はゲーム的に心地よい程度。
+    private func normalizeDifference(_ value: Double, maxMagnitude: Double = 0.5) -> Double {
         guard maxMagnitude > 0 else { return 0 }
         let clamped = max(-maxMagnitude, min(maxMagnitude, value))
-        return clamped / maxMagnitude
+        let linear = clamped / maxMagnitude
+
+        let exponent = 0.55
+        let absVal = abs(linear)
+        let spread = pow(absVal, exponent)
+        return linear >= 0 ? spread : -spread
     }
 }
 

@@ -12,6 +12,35 @@ typealias PlatformColor = UIColor
 typealias PlatformColor = NSColor
 #endif
 
+// MARK: - Sky Gradient
+
+/// UIGraphicsImageRenderer で上→下の空グラデーション画像を生成。
+private func createSkyGradientImage() -> UIImage {
+    let size = CGSize(width: 1, height: 512)
+    let renderer = UIGraphicsImageRenderer(size: size)
+    return renderer.image { ctx in
+        let colors: [CGColor] = [
+            UIColor(red: 0.42, green: 0.58, blue: 0.82, alpha: 1).cgColor,
+            UIColor(red: 0.62, green: 0.74, blue: 0.90, alpha: 1).cgColor,
+            UIColor(red: 0.82, green: 0.82, blue: 0.88, alpha: 1).cgColor,
+            UIColor(red: 0.90, green: 0.82, blue: 0.78, alpha: 1).cgColor
+        ]
+        let locations: [CGFloat] = [0.0, 0.35, 0.7, 1.0]
+        if let gradient = CGGradient(
+            colorsSpace: CGColorSpaceCreateDeviceRGB(),
+            colors: colors as CFArray,
+            locations: locations
+        ) {
+            ctx.cgContext.drawLinearGradient(
+                gradient,
+                start: CGPoint(x: 0, y: 0),
+                end: CGPoint(x: 0, y: size.height),
+                options: []
+            )
+        }
+    }
+}
+
 /// 認識精度に応じたディスク形状（仕様: Perfect=正円, Nice=歪み, Miss=欠け）
 enum DiskShape {
     case perfect  // 安定した正円
@@ -85,13 +114,8 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         scene.physicsWorld.gravity = SCNVector3(0, -9.8, 0)
         scene.physicsWorld.contactDelegate = self
 
-        // 環境（CAGradientLayer はシミュレータの Metal でクラッシュするため単色を使用）
-        // アクセシビリティ: ややニュートラル寄りの青で、ラベル・ディスクとのコントラストを確保
-#if canImport(UIKit)
-        scene.background.contents = UIColor(red: 0.88, green: 0.93, blue: 0.98, alpha: 1)
-#else
-        scene.background.contents = NSColor(red: 0.88, green: 0.93, blue: 0.98, alpha: 1)
-#endif
+        // 空の色: 夕暮れの穏やかなグラデーション感をプログラムで生成
+        scene.background.contents = createSkyGradientImage()
 
         // カメラ
         cameraNode.camera = SCNCamera()
@@ -106,16 +130,22 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         lightNode.position = SCNVector3(5, 8, 5)
         scene.rootNode.addChildNode(lightNode)
 
-        
-        // 床（やや明るいグレーでボードのガラス感を際立たせる）
+        // 床: 落ち着いた暖色系で空との調和を意識
         let floor = SCNFloor()
-        floor.reflectivity = 0.15
+        floor.reflectivity = 0.25
+        floor.reflectionFalloffEnd = 8.0
         let floorNode = SCNNode(geometry: floor)
+        let floorMat = floor.firstMaterial ?? SCNMaterial()
 #if canImport(UIKit)
-        floorNode.geometry?.firstMaterial?.diffuse.contents = UIColor(white: 0.25, alpha: 1)
+        floorMat.diffuse.contents = UIColor(red: 0.22, green: 0.20, blue: 0.28, alpha: 1)
+        floorMat.specular.contents = UIColor(white: 0.3, alpha: 1)
 #else
-        floorNode.geometry?.firstMaterial?.diffuse.contents = NSColor(white: 0.25, alpha: 1)
+        floorMat.diffuse.contents = NSColor(red: 0.22, green: 0.20, blue: 0.28, alpha: 1)
+        floorMat.specular.contents = NSColor(white: 0.3, alpha: 1)
 #endif
+        floorMat.lightingModel = .physicallyBased
+        floorMat.roughness.contents = 0.3
+        floorMat.metalness.contents = 0.1
         // 床は静的な物理ボディ。低反発・高摩擦で落ちたディスクの跳ねを抑える。
         let floorBody = SCNPhysicsBody.static()
         floorBody.restitution = PhysicsConfig.restitution
@@ -123,8 +153,8 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         floorBody.categoryBitMask = PhysicsCategory.floor
         floorBody.contactTestBitMask = PhysicsCategory.disc
         floorNode.physicsBody = floorBody
-        // 盤面との距離感を出すために、床を少し低めに配置する。
-        floorNode.position = SCNVector3(0, -1.0, 0)
+        // 盤面との距離感を出すために、床を低めに配置する。
+        floorNode.position = SCNVector3(0, -3.0, 0)
         scene.rootNode.addChildNode(floorNode)
 
         // タワーの土台（傾ける板）— PBR ガラス風マテリアル
@@ -145,17 +175,30 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
         addAnchorLabels()
         addTargetMarker()
 
-        // 環境光を追加（ガラス表現の補助）
+        // 環境光（温かみのあるトーン）
         let ambientNode = SCNNode()
         ambientNode.light = SCNLight()
         ambientNode.light?.type = .ambient
-        ambientNode.light?.intensity = 400
+        ambientNode.light?.intensity = 500
 #if canImport(UIKit)
-        ambientNode.light?.color = UIColor(white: 0.9, alpha: 1)
+        ambientNode.light?.color = UIColor(red: 0.95, green: 0.92, blue: 0.88, alpha: 1)
 #else
-        ambientNode.light?.color = NSColor(white: 0.9, alpha: 1)
+        ambientNode.light?.color = NSColor(red: 0.95, green: 0.92, blue: 0.88, alpha: 1)
 #endif
         scene.rootNode.addChildNode(ambientNode)
+
+        // 上方向からの柔らかいライト（空の色を反映）
+        let skyLightNode = SCNNode()
+        skyLightNode.light = SCNLight()
+        skyLightNode.light?.type = .directional
+        skyLightNode.light?.intensity = 200
+#if canImport(UIKit)
+        skyLightNode.light?.color = UIColor(red: 0.75, green: 0.82, blue: 0.95, alpha: 1)
+#else
+        skyLightNode.light?.color = NSColor(red: 0.75, green: 0.82, blue: 0.95, alpha: 1)
+#endif
+        skyLightNode.eulerAngles = SCNVector3(-Float.pi / 3, Float.pi / 6, 0)
+        scene.rootNode.addChildNode(skyLightNode)
 
         // ディスク移動に合わせて重心を定期的に更新する。
         Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
@@ -185,11 +228,11 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate {
             node.scale = SCNVector3(1.25, 1.0, 0.75)  // より歪んで不安定
         }
 
-        // ボードは width=6, length=6。セマンティック座標を少し強調して左右に広げる。
-        // [-1, 1] のセマンティックXを 4倍してから [-1, 1] に再クリップし、ボード半幅(≈3)の内側に収める。
-        let semanticScaledX = max(-1.0, min(1.0, position.x * 4.0))
-        let localX = Float(semanticScaledX) * 2.5
-        let localZ = Float(position.y) * 2.5
+        // ボードは width=6, length=6 (半幅 3)。
+        // セマンティック座標 [-1, 1] はすでに非線形スプレッド済みなので
+        // ボード内に収まるようマッピングするだけ。
+        let localX = Float(max(-1.0, min(1.0, position.x))) * 2.6
+        let localZ = Float(max(-1.0, min(1.0, position.y))) * 2.6
 
         // 上の方から自由落下させるため、Y を高めに設定。
         let startY: Float = 4.0
