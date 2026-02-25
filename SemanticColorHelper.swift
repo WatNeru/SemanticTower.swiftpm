@@ -7,11 +7,19 @@ import UIKit
 import AppKit
 #endif
 
-/// セマンティック座標から色を生成。4象限ごとに特徴的なカラーを割り当て、
-/// HSB 色空間で滑らかに補間することで豊かなバリエーションを実現。
+/// セマンティック座標から色を生成。
+/// 4アンカー色を座標に基づく重みで混色し、明度を調整して見やすくする。
 ///
-/// 色覚多様性: 色相を均等に分散（90°間隔）し、彩度と明度で差別化。
-/// 赤緑色覚でも象限の区別がつくよう、明度差を大きく取る。
+/// アンカー色（3Dラベルと統一）:
+///   Nature (+X) : 緑   (0.15, 0.72, 0.38)
+///   Machine(-X) : 紫   (0.40, 0.30, 0.75)
+///   Living (+Y) : 金   (0.92, 0.68, 0.20)
+///   Object (-Y) : 青   (0.25, 0.65, 0.88)
+///
+/// アクセシビリティ:
+///   - 緑/紫 は色覚多様性でも明度差で区別可能
+///   - 金/青 は全色覚タイプで区別しやすい組み合わせ
+///   - 最終出力の明度を 0.55–0.82 に制限し、白文字・黒文字どちらでも読める
 enum SemanticColorHelper {
 #if canImport(UIKit)
     typealias PlatformColor = UIColor
@@ -19,39 +27,59 @@ enum SemanticColorHelper {
     typealias PlatformColor = NSColor
 #endif
 
-    /// セマンティック座標 (x, y) → 色
-    /// x: Nature(+1) ↔ Machine(-1), y: Living(+1) ↔ Object(-1)
+    // 4アンカー色（RGB）
+    private static let natureRGB:  (r: CGFloat, g: CGFloat, b: CGFloat) = (0.15, 0.72, 0.38)
+    private static let machineRGB: (r: CGFloat, g: CGFloat, b: CGFloat) = (0.40, 0.30, 0.75)
+    private static let livingRGB:  (r: CGFloat, g: CGFloat, b: CGFloat) = (0.92, 0.68, 0.20)
+    private static let objectRGB:  (r: CGFloat, g: CGFloat, b: CGFloat) = (0.25, 0.65, 0.88)
+
+    /// セマンティック座標 → 色
     static func color(for semanticX: CGFloat, semanticY: CGFloat) -> PlatformColor {
         let clampX = max(-1, min(1, semanticX))
         let clampY = max(-1, min(1, semanticY))
 
-        // 4象限の基準色 (HSB)
-        //   (+X,+Y) Nature×Living  : 暖かい緑 (H=140°)
-        //   (-X,+Y) Machine×Living : 鮮やかな紫 (H=280°)
-        //   (+X,-Y) Nature×Object  : ティール (H=180°)
-        //   (-X,-Y) Machine×Object : ディープブルー (H=230°)
-        let xBlend = (clampX + 1) / 2   // 0(Machine) → 1(Nature)
-        let yBlend = (clampY + 1) / 2   // 0(Object) → 1(Living)
+        // X軸の重み: +1 → Nature 100%, -1 → Machine 100%
+        let natureW  = max(0, clampX)         // 0...1
+        let machineW = max(0, -clampX)        // 0...1
 
-        // 上段 (Living): 紫 → 緑
-        let topHue = lerp(280, 140, blend: xBlend)
-        let topSat = lerp(0.72, 0.68, blend: xBlend)
-        let topBri = lerp(0.78, 0.72, blend: xBlend)
+        // Y軸の重み: +1 → Living 100%, -1 → Object 100%
+        let livingW  = max(0, clampY)         // 0...1
+        let objectW  = max(0, -clampY)        // 0...1
 
-        // 下段 (Object): ディープブルー → ティール
-        let botHue = lerp(230, 180, blend: xBlend)
-        let botSat = lerp(0.65, 0.60, blend: xBlend)
-        let botBri = lerp(0.62, 0.68, blend: xBlend)
+        // 重みの合計（0になるのは原点のみ）
+        let totalW = natureW + machineW + livingW + objectW
 
-        // 上下を補間
-        let hue = lerp(botHue, topHue, blend: yBlend)
-        let sat = lerp(botSat, topSat, blend: yBlend)
-        let bri = lerp(botBri, topBri, blend: yBlend)
+        let red: CGFloat
+        let green: CGFloat
+        let blue: CGFloat
+
+        if totalW < 0.001 {
+            // 原点: 4色の平均
+            red   = (natureRGB.r + machineRGB.r + livingRGB.r + objectRGB.r) / 4
+            green = (natureRGB.g + machineRGB.g + livingRGB.g + objectRGB.g) / 4
+            blue  = (natureRGB.b + machineRGB.b + livingRGB.b + objectRGB.b) / 4
+        } else {
+            red   = (natureRGB.r * natureW + machineRGB.r * machineW
+                   + livingRGB.r * livingW + objectRGB.r * objectW) / totalW
+            green = (natureRGB.g * natureW + machineRGB.g * machineW
+                   + livingRGB.g * livingW + objectRGB.g * objectW) / totalW
+            blue  = (natureRGB.b * natureW + machineRGB.b * machineW
+                   + livingRGB.b * livingW + objectRGB.b * objectW) / totalW
+        }
+
+        // 彩度を少し高めて視認性を上げる
+        let boosted = boostSaturation(red: red, green: green, blue: blue, factor: 1.25)
+
+        // 明度を 0.55–0.82 の範囲に制限（暗すぎず明るすぎず）
+        let adjusted = adjustBrightness(
+            red: boosted.red, green: boosted.green, blue: boosted.blue,
+            minBrightness: 0.55, maxBrightness: 0.82
+        )
 
         return PlatformColor(
-            hue: hue / 360.0,
-            saturation: sat,
-            brightness: bri,
+            red: adjusted.red,
+            green: adjusted.green,
+            blue: adjusted.blue,
             alpha: 1.0
         )
     }
@@ -65,40 +93,67 @@ enum SemanticColorHelper {
 #endif
     }
 
-    /// ベースカラーに対してコントラストのあるテキスト色を返す。
-    /// 明るい背景 → ダーク文字、暗い背景 → ライト文字。WCAG 4.5:1 準拠。
+    /// ベースカラーに対してコントラストのあるテキスト色（WCAG 4.5:1 目標）
     static func contrastingTextColor(for background: PlatformColor) -> PlatformColor {
         let lum = relativeLuminance(of: background)
         return lum > 0.35
-            ? PlatformColor(white: 0.10, alpha: 1)
-            : PlatformColor(white: 0.95, alpha: 1)
+            ? PlatformColor(white: 0.08, alpha: 1)
+            : PlatformColor(white: 0.97, alpha: 1)
     }
 
-    /// リング装飾用の半透明コントラスト色
     static func contrastingRingColor(for background: PlatformColor) -> PlatformColor {
         let lum = relativeLuminance(of: background)
         return lum > 0.35
-            ? PlatformColor(white: 0.0, alpha: 0.20)
-            : PlatformColor(white: 1.0, alpha: 0.25)
+            ? PlatformColor(white: 0.0, alpha: 0.18)
+            : PlatformColor(white: 1.0, alpha: 0.22)
     }
 
-    /// アイコン色（テキストと同系だがやや薄い）
     static func contrastingIconColor(for background: PlatformColor) -> PlatformColor {
         let lum = relativeLuminance(of: background)
         return lum > 0.35
-            ? PlatformColor(white: 0.15, alpha: 0.80)
-            : PlatformColor(white: 1.0, alpha: 0.85)
+            ? PlatformColor(white: 0.12, alpha: 0.85)
+            : PlatformColor(white: 1.0, alpha: 0.90)
     }
 
     // MARK: - Private
-
-    private static func lerp(_ from: CGFloat, _ to: CGFloat, blend: CGFloat) -> CGFloat {
-        from + (to - from) * max(0, min(1, blend))
-    }
 
     private static func relativeLuminance(of color: PlatformColor) -> CGFloat {
         var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
         color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
         return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+    }
+
+    private static func boostSaturation(
+        red: CGFloat, green: CGFloat, blue: CGFloat, factor: CGFloat
+    ) -> (red: CGFloat, green: CGFloat, blue: CGFloat) {
+        let gray = 0.2126 * red + 0.7152 * green + 0.0722 * blue
+        let newR = max(0, min(1, gray + (red - gray) * factor))
+        let newG = max(0, min(1, gray + (green - gray) * factor))
+        let newB = max(0, min(1, gray + (blue - gray) * factor))
+        return (newR, newG, newB)
+    }
+
+    private static func adjustBrightness(
+        red: CGFloat, green: CGFloat, blue: CGFloat,
+        minBrightness: CGFloat, maxBrightness: CGFloat
+    ) -> (red: CGFloat, green: CGFloat, blue: CGFloat) {
+        let brightness = max(red, green, blue)
+        guard brightness > 0.001 else {
+            return (minBrightness, minBrightness, minBrightness)
+        }
+        let target: CGFloat
+        if brightness < minBrightness {
+            target = minBrightness
+        } else if brightness > maxBrightness {
+            target = maxBrightness
+        } else {
+            return (red, green, blue)
+        }
+        let scale = target / brightness
+        return (
+            min(1, red * scale),
+            min(1, green * scale),
+            min(1, blue * scale)
+        )
     }
 }
