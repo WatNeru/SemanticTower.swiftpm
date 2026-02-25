@@ -268,8 +268,11 @@ final class GameScene3D: NSObject, @preconcurrency SCNPhysicsContactDelegate {
         let startY: Float = 4.0
         node.position = SCNVector3(localX, startY, localZ)
 
-        // 動的な物理ボディ：スタッキング向けに高摩擦・低反発・高 rollingFriction。
-        let body = SCNPhysicsBody.dynamic()
+        // SCNShape の複雑なジオメトリから物理形状を自動生成するとクラッシュするため、
+        // シンプルな円柱を衝突形状として明示的に指定する。
+        let collisionCylinder = SCNCylinder(radius: shapeRadius, height: extrusionDepth)
+        let physicsShape = SCNPhysicsShape(geometry: collisionCylinder, options: nil)
+        let body = SCNPhysicsBody(type: .dynamic, shape: physicsShape)
         body.mass = CGFloat(mass)
         body.restitution = PhysicsConfig.restitution
         body.friction = PhysicsConfig.friction
