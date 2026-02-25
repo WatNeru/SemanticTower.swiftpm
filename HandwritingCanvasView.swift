@@ -111,7 +111,7 @@ struct HandwritingCanvasView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: FingerDrawView, context: Context) {
-        if clearSignal && !uiView.isEmpty {
+        if clearSignal {
             uiView.clear()
         }
     }
