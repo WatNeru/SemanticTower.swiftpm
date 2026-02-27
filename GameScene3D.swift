@@ -309,7 +309,7 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
         // すり抜け防止のため、ある程度の速さ以上で連続衝突判定を有効にする。
         body.continuousCollisionDetectionThreshold = 0.01
         body.categoryBitMask = PhysicsCategory.disc
-        body.contactTestBitMask = PhysicsCategory.board | PhysicsCategory.floor
+        body.contactTestBitMask = PhysicsCategory.board | PhysicsCategory.floor | PhysicsCategory.disc
         node.physicsBody = body
 
         scene.rootNode.addChildNode(node)
@@ -568,6 +568,28 @@ final class GameScene3D: NSObject, SCNPhysicsContactDelegate, @unchecked Sendabl
                 if wasOffBoard {
                     SoundEngine.shared.playLand()
                 }
+            }
+            return
+        }
+
+        // ディスク同士の接触 → 片方がボード上なら、もう片方もボード上とみなす
+        if categoryA == PhysicsCategory.disc && categoryB == PhysicsCategory.disc {
+            let idxA = discs.firstIndex(where: { $0.node === nodeA })
+            let idxB = discs.firstIndex(where: { $0.node === nodeB })
+            let aOnBoard = idxA.map { discs[$0].isOnBoard } ?? false
+            let bOnBoard = idxB.map { discs[$0].isOnBoard } ?? false
+
+            if aOnBoard, let ib = idxB, !discs[ib].isOnBoard {
+                nodeB.physicsBody?.velocity = SCNVector3Zero
+                nodeB.physicsBody?.angularVelocity = SCNVector4Zero
+                discs[ib].isOnBoard = true
+                SoundEngine.shared.playLand()
+            }
+            if bOnBoard, let ia = idxA, !discs[ia].isOnBoard {
+                nodeA.physicsBody?.velocity = SCNVector3Zero
+                nodeA.physicsBody?.angularVelocity = SCNVector4Zero
+                discs[ia].isOnBoard = true
+                SoundEngine.shared.playLand()
             }
             return
         }
