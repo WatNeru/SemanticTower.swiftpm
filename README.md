@@ -29,47 +29,69 @@ Built entirely with Apple frameworks — Swift 6, SwiftUI, SceneKit, NaturalLang
 | **Accessibility** | WCAG 2.1 AA colors, high-contrast mode, large text, haptic feedback, VoiceOver labels |
 | **Onboarding** | 3-step tutorial explaining the semantic positioning concept |
 
-## Architecture
+## Architecture (MVVM)
 
 ```
 SemanticTower.swiftpm/
-├── MyApp.swift                    App entry point + onboarding flow
-├── ContentView.swift              Main game view (HUD, input, feedback)
-├── GameScene3D.swift              SceneKit 3D scene (board, discs, physics, tilt)
-├── SemanticGameController.swift   ViewModel connecting UI ↔ engine ↔ 3D
 │
-├── SemanticEmbeddingManager.swift Semantic coordinate calculation
-├── SemanticEmbeddingTypes.swift   Protocol + config types
-├── NLEmbeddingProvider.swift      NLEmbedding wrapper
+├── MyApp.swift                         App entry point + onboarding flow
 │
-├── WordDatabase.swift             1500+ word → icon + shape mappings
-├── WordIconMapper.swift           Icon rendering (SF Symbols / Emoji)
-├── DiscShapeType.swift            9 UIBezierPath shape generators
-├── DiscTextureGenerator.swift     Programmatic disc face textures
-├── DiscMaterialHelper.swift       SceneKit PBR materials
-├── SemanticColorHelper.swift      Anchor-weighted color mixing
+├── Models/                             Data layer
+│   ├── SemanticEmbeddingTypes.swift      Protocol, AnchorSet, SemanticConfig
+│   ├── GameSettings.swift                Persistent settings (@AppStorage)
+│   ├── ScoringEngine.swift               Word accuracy evaluation
+│   └── WordDatabase.swift                1500+ word → icon + shape mappings
 │
-├── HandwritingCanvasView.swift    Finger drawing (UIBezierPath + Core Graphics)
-├── HandwritingRecognizer.swift    Vision text recognition
-├── ScoringEngine.swift            Word accuracy evaluation
-├── SoundEngine.swift              Procedural audio synthesis
-├── HapticFeedback.swift           Haptic feedback
+├── ViewModels/                         Business logic
+│   └── SemanticGameController.swift      Connects UI ↔ engine ↔ 3D scene
 │
-├── Theme.swift                    Design system (colors, glass, glow)
-├── AnimatedBackground.swift       Starfield + nebula background
-├── OnboardingView.swift           Tutorial screens
-├── GlassUIComponents.swift        Glass effect modifiers
-├── GameStatsView.swift            Tower height / streak / balance stats
-├── BalanceIndicator.swift         Center-of-mass indicator
-├── CompassOverlayView.swift       Semantic minimap + expanded map
-├── ScoreFeedbackView.swift        Animated score popup
-├── FallNotificationView.swift     Disc fall notification
-├── GameSettings.swift             Persistent settings (@AppStorage)
-├── SettingsView.swift             Settings UI
+├── Views/                              Presentation layer
+│   ├── Game/
+│   │   ├── ContentView.swift              Main game screen + HUD composition
+│   │   ├── GameView3D.swift               SceneKit view wrapper
+│   │   └── GameView.swift                 SpriteKit view wrapper (legacy)
+│   ├── HUD/
+│   │   ├── BalanceIndicator.swift         Center-of-mass radar
+│   │   ├── CompassOverlayView.swift       Semantic minimap + expanded map
+│   │   ├── GameStatsView.swift            Height / discs / streak / balance
+│   │   ├── ScoreFeedbackView.swift        Animated score popup
+│   │   ├── FallNotificationView.swift     Disc fall notification
+│   │   └── WordInputBar.swift             Keyboard input bar
+│   ├── Input/
+│   │   └── HandwritingCanvasView.swift    Finger drawing canvas + panel
+│   ├── Onboarding/
+│   │   └── OnboardingView.swift           3-step tutorial
+│   └── Settings/
+│       └── SettingsView.swift             Anchor / sound / accessibility
 │
-├── TestEmbeddingProvider.swift    Debug test mock
-├── SemanticEngineDebugTests.swift Debug assertions
-└── Assets.xcassets/               App icon (programmatically generated)
+├── Engine/                             Core logic (framework-independent)
+│   ├── SemanticEmbeddingManager.swift    Semantic coordinate calculation
+│   ├── NLEmbeddingProvider.swift         NLEmbedding wrapper
+│   ├── HandwritingRecognizer.swift       Vision text recognition
+│   └── SoundEngine.swift                 Procedural audio synthesis
+│
+├── Scene/                              SceneKit 3D layer
+│   ├── GameScene3D.swift                 Board, discs, physics, tilt
+│   ├── GameScene.swift                   SpriteKit scene (legacy)
+│   ├── DiscShapeType.swift               9 UIBezierPath shape generators
+│   ├── DiscTextureGenerator.swift        Programmatic disc face textures
+│   ├── DiscMaterialHelper.swift          PBR materials for discs
+│   ├── SemanticColorHelper.swift         Anchor-weighted color mixing
+│   └── WordIconMapper.swift              Icon rendering delegate
+│
+├── Theme/                              Design system
+│   ├── Theme.swift                       Colors, gradients, glass, glow
+│   ├── AnimatedBackground.swift          Starfield + nebula Canvas
+│   └── GlassUIComponents.swift           Glass effect modifiers
+│
+├── Utilities/
+│   └── HapticFeedback.swift              Haptic feedback helper
+│
+├── Tests/
+│   ├── TestEmbeddingProvider.swift        Mock embedding provider
+│   └── SemanticEngineDebugTests.swift     Debug assertions
+│
+└── Assets.xcassets/                    App icon
 ```
 
 ## Zero External Assets
