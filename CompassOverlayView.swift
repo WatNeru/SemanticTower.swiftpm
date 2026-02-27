@@ -18,7 +18,7 @@ private struct MapCoordinateHelper {
         let usableH = max(1, size.height - padding * 2)
         let scaled = scaledSemantic(semantic)
         let posX = padding + usableW * (scaled.x + 1) / 2
-        let posY = padding + usableH * (1 + scaled.y) / 2
+        let posY = padding + usableH * (1 - scaled.y) / 2
         return CGPoint(x: posX, y: posY)
     }
 }
@@ -50,9 +50,9 @@ struct CompassOverlayView: View {
         ZStack(alignment: .center) {
             crosshairLines
 
-            axisLabel(initial(settings.anchorObject), color: STTheme.Colors.accentCyan)
-                .offset(y: -26)
             axisLabel(initial(settings.anchorLiving), color: STTheme.Colors.accentGold)
+                .offset(y: -26)
+            axisLabel(initial(settings.anchorObject), color: STTheme.Colors.accentCyan)
                 .offset(y: 26)
             axisLabel(initial(settings.anchorNature), color: STTheme.Colors.perfectBlue)
                 .offset(x: 42)
@@ -112,7 +112,7 @@ struct CompassOverlayView: View {
         return ForEach(Array(controller.placedWords.suffix(8).enumerated()), id: \.offset) { _, item in
             let scaled = MapCoordinateHelper.scaledSemantic(item.position)
             let dotX = mapCenterX + scaled.x * mapScale
-            let dotY = mapCenterY + scaled.y * mapScale
+            let dotY = mapCenterY - scaled.y * mapScale
             Circle()
                 .fill(SemanticColorHelper.swiftUIColor(for: item.position.x, semanticY: item.position.y))
                 .frame(width: 5, height: 5)
@@ -126,7 +126,7 @@ struct CompassOverlayView: View {
         let mapCenterY: CGFloat = 35
         let mapScale: CGFloat = 22
         let targetX = mapCenterX - scaled.x * mapScale
-        let targetY = mapCenterY + scaled.y * mapScale
+        let targetY = mapCenterY - scaled.y * mapScale
         return ZStack {
             Circle()
                 .stroke(STTheme.Colors.accentCyan.opacity(0.6), lineWidth: 1.5)
@@ -159,9 +159,9 @@ struct ExpandedMapView: View {
                     gridLines(width: geoWidth, height: geoHeight)
 
                     Group {
-                        expandedLabel(settings.anchorObject.capitalized, color: STTheme.Colors.accentCyan)
-                            .position(x: geoWidth / 2, y: 16)
                         expandedLabel(settings.anchorLiving.capitalized, color: STTheme.Colors.accentGold)
+                            .position(x: geoWidth / 2, y: 16)
+                        expandedLabel(settings.anchorObject.capitalized, color: STTheme.Colors.accentCyan)
                             .position(x: geoWidth / 2, y: geoHeight - 16)
                         expandedLabel(settings.anchorNature.capitalized, color: STTheme.Colors.perfectBlue)
                             .position(x: geoWidth - 28, y: geoHeight / 2)
