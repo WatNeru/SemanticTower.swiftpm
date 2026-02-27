@@ -126,7 +126,7 @@ struct CompassOverlayView: View {
         let mapCenterY: CGFloat = 35
         let mapScale: CGFloat = 22
         let targetX = mapCenterX - scaled.x * mapScale
-        let targetY = mapCenterY - scaled.y * mapScale
+        let targetY = mapCenterY + scaled.y * mapScale
         return ZStack {
             Circle()
                 .stroke(STTheme.Colors.accentCyan.opacity(0.6), lineWidth: 1.5)
@@ -193,7 +193,7 @@ struct ExpandedMapView: View {
                     if !controller.placedWords.isEmpty {
                         let flippedTarget = CGPoint(
                             x: -controller.targetPosition.x,
-                            y: controller.targetPosition.y
+                            y: -controller.targetPosition.y
                         )
                         let point = MapCoordinateHelper.mapPoint(
                             semantic: flippedTarget,
